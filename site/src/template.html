@@ -361,18 +361,43 @@ mjx-container[display="true"] { margin: .4em 0 !important; }
 .runner { display: flex; flex-direction: column; gap: 12px; }
 .editor-wrap { position: relative; border-radius: var(--radius); background: var(--code-bg); border: 1px solid var(--code-line); overflow: hidden; }
 .editor-wrap .code-bar { border-bottom: 1px solid var(--code-line); }
-.editor {
-  display: block; width: 100%; min-height: 320px; resize: vertical; border: 0; outline: none; margin: 0;
-  padding: 14px 16px; background: transparent; color: var(--code-fg); caret-color: var(--hl-kw);
-  font-family: var(--font-mono); font-size: .8125rem; line-height: 1.65; tab-size: 4; white-space: pre; overflow: auto;
+.editor-wrap:focus-within { border-color: var(--hl-fn); }
+/* 编辑器：透明 textarea 叠在高亮的 pre 上，两者排版必须完全一致 */
+.ed { position: relative; }
+.ed-hl, .ed-ta {
+  margin: 0; border: 0; padding: 14px 16px; box-sizing: border-box;
+  font-family: var(--font-mono); font-size: .8125rem; line-height: 1.65; tab-size: 4; letter-spacing: 0;
+  font-variant-ligatures: none; white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal;
 }
-.runner-out {
-  font-family: var(--font-mono); font-size: .78rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin: 0; max-height: 420px; overflow: auto;
+.ed-hl { color: var(--code-fg); min-height: 380px; pointer-events: none; }
+.ed-hl code { font: inherit; white-space: inherit; }
+.ed-ta {
+  position: absolute; inset: 0; width: 100%; height: 100%; resize: none; overflow: hidden;
+  background: transparent; color: transparent; -webkit-text-fill-color: transparent; caret-color: var(--hl-kw); outline: none;
 }
-.runner-out .ok { color: var(--ok); } .runner-out .bad { color: var(--bad); } .runner-out .todo { color: var(--warn); } .runner-out .dim { color: var(--muted); }
+.ed-ta::selection { background: color-mix(in srgb, var(--hl-fn) 35%, transparent); }
 .runner-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .runner-status { font-size: var(--fs-xs); color: var(--muted); }
+.runner-status a { color: var(--accent); }
+.kbd-hint { font-size: .7rem; color: var(--code-muted); font-family: var(--font-mono); }
+.res { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); overflow: hidden; }
+.res-sum { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 10px 14px; font-weight: 600; font-size: var(--fs-sm); }
+.res-sum.ok { background: var(--ok-tint); color: var(--ok); }
+.res-sum.bad { background: var(--bad-tint); color: var(--bad); }
+.res-sum.todo { background: var(--warn-tint); color: var(--warn); }
+.res-sum .sp { flex: 1; }
+.res-list { list-style: none; margin: 0; padding: 6px 0; font-family: var(--font-mono); font-size: .78rem; line-height: 1.6; }
+.res-list li { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 2px 8px; padding: 3px 14px; }
+.res-list .ic { font-weight: 700; }
+.res-list .pass .ic { color: var(--ok); } .res-list .fail .ic, .res-list .error .ic { color: var(--bad); } .res-list .todo .ic { color: var(--warn); }
+.res-list .ms { color: var(--muted); font-size: .7rem; }
+.res-list .note { color: var(--warn); }
+.res pre, .res-list pre {
+  grid-column: 2 / -1; margin: 4px 0 6px; padding: 8px 10px; border-radius: 6px; background: var(--sunk); color: var(--ink-2);
+  font-family: var(--font-mono); font-size: .74rem; line-height: 1.55; white-space: pre-wrap; word-break: break-word; max-height: 280px; overflow: auto;
+}
+.res > pre { margin: 10px 14px 12px; }
+.res-label { padding: 8px 14px 0; font-family: var(--font-mono); font-size: .66rem; letter-spacing: .1em; color: var(--muted); }
 
 /* ---------- QA ---------- */
 .qa-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0 20px; }
@@ -875,6 +900,228 @@ function buildToc(article, tocEl) {
 var tocSpy = null;
 window.addEventListener("scroll", function () { if (tocSpy) tocSpy(); }, { passive: true });
 
+/* ---------- 在线运行：Pyodide（浏览器里的 CPython + numpy）跑在 Web Worker 里 ---------- */
+var PYODIDE_URL = "https://cdn.jsdelivr.net/pyodide/v0.28.3/full/";
+var RUN_TIMEOUT_MS = 30000;
+var HARNESS = String.raw`
+import sys, io, os, re, json, time, traceback, importlib.util, contextlib, inspect
+
+def _rh_load(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+def _rh_fmt(e):
+    # 只保留用户代码和测试文件里的帧，去掉 numpy / 标准库内部的帧
+    frames = [f for f in traceback.extract_tb(e.__traceback__) if f.filename.startswith('/tmp/rh/')]
+    head = ('Traceback (most recent call last):\n' + ''.join(traceback.format_list(frames))) if frames else ''
+    text = head + ''.join(traceback.format_exception_only(type(e), e))
+    text = re.sub(r'/tmp/rh/[^/"]+/', '', text)
+    lines = text.rstrip().splitlines()
+    if len(lines) > 40:
+        lines = lines[:12] + ['...'] + lines[-27:]
+    return '\n'.join(lines)
+
+_RH_N = [0]
+
+def _rh_run(job_json):
+    job = json.loads(job_json)
+    _RH_N[0] += 1
+    n = _RH_N[0]
+    d = '/tmp/rh/%s_%d' % (job['slug'], n)
+    os.makedirs(d, exist_ok=True)
+    with open(d + '/template.py', 'w') as f:
+        f.write(job['code'])
+    res = {'import_error': None, 'tests': [], 'stdout': ''}
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+        try:
+            mod = _rh_load('rh_user_%d' % n, d + '/template.py')
+        except BaseException as e:
+            res['import_error'] = _rh_fmt(e)
+            mod = None
+        if mod is not None:
+            for t in job['tests']:
+                tp = d + '/' + t['name']
+                with open(tp, 'w') as f:
+                    f.write(t['code'])
+                try:
+                    tm = _rh_load('rh_test_%d_%s' % (n, t['name'][:-3]), tp)
+                except BaseException as e:
+                    res['tests'].append({'name': t['name'], 'status': 'error', 'detail': _rh_fmt(e), 'ms': 0})
+                    continue
+                for name, fn in list(vars(tm).items()):
+                    if not (name.startswith('test_') and callable(fn)):
+                        continue
+                    t0 = time.perf_counter()
+                    try:
+                        if len(inspect.signature(fn).parameters) >= 1:
+                            fn(mod)
+                        else:
+                            fn()
+                        st, detail = 'pass', ''
+                    except NotImplementedError:
+                        st, detail = 'todo', ''
+                    except BaseException as e:
+                        st, detail = 'fail', _rh_fmt(e)
+                    res['tests'].append({'name': name, 'status': st, 'detail': detail,
+                                         'ms': round((time.perf_counter() - t0) * 1000)})
+    res['stdout'] = buf.getvalue()[-4000:]
+    return json.dumps(res)
+`;
+var rt = { worker: null, ready: null, state: "idle" }; // idle | loading | ready
+function rtReset() { if (rt.worker) rt.worker.terminate(); rt.worker = null; rt.ready = null; rt.state = "idle"; }
+function rtEnsure() {
+  if (rt.ready) return rt.ready;
+  var src = "var py = null; var HARNESS = " + JSON.stringify(HARNESS) + ";\n" +
+    "self.onmessage = async function (e) { var m = e.data; try {\n" +
+    "  if (m.type === 'init') { importScripts(m.url + 'pyodide.js'); py = await loadPyodide({ indexURL: m.url }); await py.loadPackage('numpy'); py.runPython(HARNESS); postMessage({ type: 'ready' }); return; }\n" +
+    "  py.globals.set('_rh_job', JSON.stringify(m.job)); postMessage({ type: 'result', json: py.runPython('_rh_run(_rh_job)') });\n" +
+    "} catch (err) { postMessage({ type: 'error', error: String((err && err.message) || err) }); } };";
+  rt.state = "loading";
+  rt.ready = new Promise(function (resolve, reject) {
+    var w;
+    try { w = new Worker(URL.createObjectURL(new Blob([src], { type: "text/javascript" }))); }
+    catch (e) { reject(e); return; }
+    rt.worker = w;
+    var timer = setTimeout(function () { reject(new Error("加载超时")); }, 120000);
+    w.onmessage = function (e) {
+      clearTimeout(timer);
+      if (e.data.type === "ready") { rt.state = "ready"; resolve(); } else reject(new Error(e.data.error));
+    };
+    w.onerror = function (e) { clearTimeout(timer); reject(new Error(e.message || "运行环境加载失败")); };
+    w.postMessage({ type: "init", url: PYODIDE_URL });
+  });
+  rt.ready.catch(rtReset);
+  return rt.ready;
+}
+function rtRun(job) {
+  return rtEnsure().then(function () {
+    return new Promise(function (resolve, reject) {
+      var timer = setTimeout(function () { rtReset(); reject(new Error("TIMEOUT")); }, RUN_TIMEOUT_MS);
+      rt.worker.onmessage = function (e) {
+        clearTimeout(timer);
+        if (e.data.type === "result") resolve(JSON.parse(e.data.json)); else reject(new Error(e.data.error));
+      };
+      rt.worker.postMessage({ type: "run", job: job });
+    });
+  });
+}
+
+function makeEditor(initial, onChange, onRun) {
+  var el = h('<div class="ed"><pre class="ed-hl" aria-hidden="true"><code></code></pre><textarea class="ed-ta" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-label="代码编辑器，Tab 缩进，Esc 退出"></textarea></div>');
+  var ta = $("textarea", el), code = $("code", el);
+  function paint() {
+    var v = ta.value;
+    code.innerHTML = (window.hljs ? hljs.highlight(v, { language: "python", ignoreIllegals: true }).value : esc(v)) + (!v || v.slice(-1) === "\n" ? " " : "");
+  }
+  function insert(text) {
+    ta.focus();
+    var ok = false;
+    try { ok = document.execCommand("insertText", false, text); } catch (e) {}
+    if (!ok) { ta.setRangeText(text, ta.selectionStart, ta.selectionEnd, "end"); ta.dispatchEvent(new Event("input")); }
+  }
+  function indent(out) {
+    var v = ta.value, s = ta.selectionStart, e = ta.selectionEnd;
+    var ls = v.lastIndexOf("\n", s - 1) + 1;
+    if (!out && s === e) { insert("    ".slice((s - ls) % 4)); return; }
+    var le = v.indexOf("\n", e > s && v[e - 1] === "\n" ? e - 1 : e); if (le < 0) le = v.length;
+    var block = v.slice(ls, le), lines = block.split("\n");
+    var changed = lines.map(function (l) { return out ? l.replace(/^ {1,4}/, "") : "    " + l; }).join("\n");
+    ta.setSelectionRange(ls, le); insert(changed); ta.setSelectionRange(ls, ls + changed.length);
+  }
+  ta.value = initial; paint();
+  ta.addEventListener("input", function () { paint(); onChange(ta.value); });
+  ta.addEventListener("keydown", function (e) {
+    if (e.isComposing || e.keyCode === 229) return; // 中文输入法组字时不拦截
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); onRun(); return; }
+    if (e.key === "Escape") { ta.blur(); return; }
+    if (e.key === "Tab" && !e.metaKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); indent(e.shiftKey); return; }
+    if (e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      e.preventDefault();
+      var v = ta.value, s = ta.selectionStart, line = v.slice(v.lastIndexOf("\n", s - 1) + 1, s);
+      var ind = (line.match(/^ */) || [""])[0];
+      if (/:\s*(#.*)?$/.test(line)) ind += "    ";
+      insert("\n" + ind);
+    }
+  });
+  return { el: el, get: function () { return ta.value; }, set: function (v) { ta.value = v; paint(); onChange(v); } };
+}
+
+var practiceResults = {};
+function renderPractice(panel, it) {
+  var key = "code:" + it.id;
+  var saved = store.get(key, null);
+  var box = h('<div class="runner"><div class="editor-wrap"><div class="code-bar"><span class="fname"></span><span class="spacer"></span><span class="kbd-hint">Tab 缩进 · ⌘/Ctrl+Enter 运行</span></div></div>' +
+    '<div class="runner-actions"><button type="button" class="btn btn-primary" data-r="run">运行测试</button><button type="button" class="btn" data-r="reset">重置为模板</button><button type="button" class="btn" data-r="copy">复制代码</button><span class="runner-status" aria-live="polite"></span></div><div class="res-wrap"></div></div>');
+  $(".fname", box).textContent = it.path + "/template.py" + (saved != null && saved !== it.template ? "（已保存草稿）" : "");
+  var status = $(".runner-status", box), resWrap = $(".res-wrap", box), runBtn = $('[data-r="run"]', box);
+  var saveTimer;
+  var ed = makeEditor(saved != null ? saved : it.template, function (v) {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () { if (v === it.template) { try { localStorage.removeItem("rh:" + key); } catch (e) {} } else store.set(key, v); }, 300);
+  }, run);
+  $(".editor-wrap", box).appendChild(ed.el);
+  function setStatus(html) { status.innerHTML = html; }
+  function showResult(r) {
+    practiceResults[it.id] = r;
+    var tests = r.tests || [];
+    var c = { pass: 0, fail: 0, todo: 0, error: 0 };
+    tests.forEach(function (t) { c[t.status] = (c[t.status] || 0) + 1; });
+    var cls = r.import_error || c.fail || c.error ? "bad" : c.todo ? "todo" : "ok";
+    var head = r.import_error ? "代码没能导入（语法错误或顶层代码报错）"
+      : cls === "ok" ? "全部通过：" + c.pass + " / " + tests.length
+      : c.pass + " / " + tests.length + " 通过" + (c.fail + c.error ? " · " + (c.fail + c.error) + " 失败" : "") + (c.todo ? " · " + c.todo + " 个还没实现" : "");
+    var html = '<div class="res"><div class="res-sum ' + cls + '"><span>' + esc(head) + '</span><span class="sp"></span>' +
+      (cls === "ok" && !done.has(it.id) ? '<button type="button" class="btn btn-sm" data-r="done">标记为已掌握</button>' : "") + "</div>";
+    if (r.import_error) html += "<pre>" + esc(r.import_error) + "</pre>";
+    if (tests.length) {
+      html += '<ol class="res-list">' + tests.map(function (t) {
+        var ic = t.status === "pass" ? "✓" : t.status === "todo" ? "·" : "✗";
+        return '<li class="' + t.status + '"><span class="ic">' + ic + "</span><span>" + esc(t.name) + (t.status === "todo" ? ' <span class="note">NotImplementedError：还没实现</span>' : "") +
+          '</span><span class="ms">' + (t.status === "pass" ? t.ms + " ms" : "") + "</span>" + (t.detail ? "<pre>" + esc(t.detail) + "</pre>" : "") + "</li>";
+      }).join("") + "</ol>";
+    }
+    if (r.stdout) html += '<div class="res-label">print 输出</div><pre>' + esc(r.stdout) + "</pre>";
+    resWrap.innerHTML = html + "</div>";
+    var db = $('[data-r="done"]', resWrap);
+    if (db) db.addEventListener("click", function () { done.add(it.id); saveDone(); refreshNav(); db.remove(); var fb = $(".btn-done"); if (fb) { fb.classList.add("on"); fb.textContent = "✓ 已掌握（点击取消）"; } });
+  }
+  function run() {
+    if (runBtn.disabled) return;
+    runBtn.disabled = true; runBtn.textContent = "运行中…";
+    setStatus(rt.state === "ready" ? "" : "正在加载浏览器里的 Python 运行环境（Pyodide + numpy，首次约 10–20 秒，之后有缓存）…");
+    var t0 = performance.now();
+    rtRun({ slug: it.slug, code: ed.get(), tests: it.tests }).then(function (r) {
+      setStatus("用时 " + ((performance.now() - t0) / 1000).toFixed(1) + " 秒 · 浏览器内 Python 3.13");
+      showResult(r);
+    }, function (err) {
+      if (err && err.message === "TIMEOUT") {
+        setStatus("");
+        resWrap.innerHTML = '<div class="res"><div class="res-sum bad">运行超过 ' + RUN_TIMEOUT_MS / 1000 + " 秒被终止，可能有死循环。运行环境已重置，改完再试。</div></div>";
+      } else {
+        var alt = SITE.pages && location.href.indexOf(SITE.pages) !== 0 ? '，或者打开 <a href="' + esc(SITE.pages + "#" + it.id) + '" target="_blank" rel="noopener">公开网页版</a> 在线运行' : "";
+        setStatus("");
+        resWrap.innerHTML = '<div class="res"><div class="res-sum bad">没能加载浏览器里的 Python 运行环境</div><pre>' + esc(String(err && err.message || err)) +
+          "</pre></div>";
+        setStatus("可以在本地运行 <code>uv run run.py " + esc(it.slug) + "</code>" + alt + "。");
+      }
+    }).then(function () { runBtn.disabled = false; runBtn.textContent = "运行测试"; });
+  }
+  box.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-r]"); if (!b) return;
+    var a = b.getAttribute("data-r");
+    if (a === "run") run();
+    if (a === "reset") { ed.set(it.template); resWrap.innerHTML = ""; delete practiceResults[it.id]; $(".fname", box).textContent = it.path + "/template.py"; setStatus("已重置为模板。"); }
+    if (a === "copy") copyText(ed.get(), b);
+  });
+  panel.appendChild(box);
+  if (practiceResults[it.id]) showResult(practiceResults[it.id]);
+  else setStatus(rt.state === "ready" ? "运行环境已就绪。" : "代码在你的浏览器里运行，不会上传。草稿自动保存在本机。");
+}
+
 /* ---------- views ---------- */
 function renderDoc(it) {
   var el = h('<div class="page-doc"><div class="doc-main"><header class="doc-head"></header><article class="prose"></article><footer class="doc-foot"></footer></div><aside class="toc"></aside></div>');
@@ -904,6 +1151,7 @@ function renderExercise(it) {
   var tabsEl = $(".tabs", el), panel = $(".tabpanel", el);
   var revealed = false;
   var tabs = [
+    { key: "practice", label: "在线练习", render: function () { renderPractice(panel, it); } },
     { key: "template", label: "template.py", render: function () { panel.appendChild(codeBlock(it.template, "python", it.path + "/template.py")); } },
     { key: "tests", label: it.tests.map(function (t) { return t.name; }).join(", "), render: function () { it.tests.forEach(function (t) { panel.appendChild(codeBlock(t.code, "python", it.path + "/" + t.name)); }); } },
     { key: "solution", label: "参考答案 + 讲解", render: function () {
@@ -929,7 +1177,7 @@ function renderExercise(it) {
   });
   view.appendChild(el);
   enhance(art);
-  select("template");
+  select("practice");
   $(".toc", el).remove();
   var foot = $(".doc-foot", el);
   foot.appendChild(doneButton(it));
@@ -1229,7 +1477,7 @@ window.addEventListener("hashchange", route);
 document.getElementById("sideFoot").innerHTML = "进度只存在这台设备的浏览器里。<br>" + (SITE.repo
   ? '想补充或纠错？看 <a href="' + esc(SITE.repo + "/blob/" + SITE.branch + "/CONTRIBUTING.md") + '" target="_blank" rel="noopener">贡献指南</a>，或去 <a href="' + esc(SITE.repo) + '" target="_blank" rel="noopener">GitHub 仓库</a>。'
   : "内容源文件在 <code>content/</code> 和 <code>exercises/</code>，改完运行 <code>build.py</code>。");
-window.RH = { route: route, DATA: DATA };
+window.RH = { route: route, DATA: DATA, run: rtRun };
 route();
 })();
 </script>

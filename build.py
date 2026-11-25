@@ -141,7 +141,7 @@ def main():
     repo = (site_cfg.get("repo") or "").rstrip("/")
     data = {
         "generated": datetime.date.today().isoformat(),
-        "site": {"repo": repo, "branch": site_cfg.get("branch") or "main"},
+        "site": {"repo": repo, "branch": site_cfg.get("branch") or "main", "pages": site_cfg.get("pages") or ""},
         "domains": domains,
         "sections": sections,
     }
