@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: 安装依赖
+        run: uv sync
+
+      - name: 参考答案必须全部通过
+        run: uv run run.py --solution
+
+      - name: 模板不能报错（只能是 TODO）
+        run: uv run run.py
+
+      - name: pytest 跑一遍参考答案
+        run: RH_IMPL=solution uv run pytest
+
+      - name: 网页能正常构建
+        run: uv run build.py

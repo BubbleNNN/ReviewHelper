@@ -1,0 +1,14 @@
+[project]
+name = "reviewhelper"
+version = "0.1.0"
+description = "面试复习小站：理论 / 框架 / 带测试的代码题"
+requires-python = ">=3.9"
+dependencies = ["numpy>=1.24", "pytest>=7"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["exercises"]
+python_files = ["test_*.py"]
+addopts = "-q --import-mode=importlib"

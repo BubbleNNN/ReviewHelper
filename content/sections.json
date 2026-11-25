@@ -1,0 +1,10 @@
+[
+  {"id": "rl",     "group": "理论", "title": "强化学习",       "kind": "doc",      "dir": "content/theory/rl",        "track": "rl",    "blurb": "从 MDP 到 PPO / GRPO / DPO，以及 LLM-RL 里的那些坑"},
+  {"id": "infra",  "group": "理论", "title": "大模型 Infra",   "kind": "doc",      "dir": "content/theory/infra",     "track": "infra", "blurb": "并行策略、显存账、通信原语、推理引擎与投机解码"},
+  {"id": "verl",   "group": "框架", "title": "verl",           "kind": "doc",      "dir": "content/frameworks/verl",  "track": "rl",    "blurb": "HybridFlow 架构、训练循环、配置与性能开关"},
+  {"id": "dspark", "group": "框架", "title": "DSpark",         "kind": "doc",      "dir": "content/frameworks/dspark","track": "infra", "blurb": "DeepSeek 的置信度调度投机解码：草稿、校准、调度"},
+  {"id": "algo",   "group": "代码", "title": "算法题",         "kind": "exercise", "dir": "exercises/algo",           "track": "gen",   "blurb": "高频手撕题，偏向和系统设计相关的数据结构"},
+  {"id": "model",  "group": "代码", "title": "模型与 RL 实现", "kind": "exercise", "dir": "exercises/model",          "track": "rl",    "blurb": "Attention、RoPE、GAE、PPO loss、DPO… 全部 numpy 手写"},
+  {"id": "system", "group": "代码", "title": "系统实现",       "kind": "exercise", "dir": "exercises/system",         "track": "infra", "blurb": "Ring All-Reduce、Paged KV、投机采样、调度器的可运行模拟"},
+  {"id": "qa",     "group": "自测", "title": "速问速答",       "kind": "qa",       "dir": "content/qa",               "track": "gen",   "blurb": "翻卡自测，标记会与不会"}
+]
