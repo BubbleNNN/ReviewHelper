@@ -66,9 +66,27 @@ uv run run.py <slug>              # 模板必须是 TODO，不能是 FAIL / ERR
 
 在 `content/qa/` 里找对应的卡组追加，或新建一个文件。每张卡是一个 `## 问题`，下面写答案（3–10 行为宜）。
 
-## 加一个新岗位或新栏目
+## 加一个新领域
 
-在 `content/sections.json` 里加一项：`id`（小写字母）、`group`（侧栏分组名）、`title`、`kind`（`doc` / `exercise` / `qa`）、`dir`（源目录）、`track`（`rl` / `infra` / `gen`，决定颜色）、`blurb`。
+网站首页是领域选择页，每个领域（比如 RL × Infra）由若干**栏目**组成。栏目可以被多个领域共用：算法题栏目放进你的新领域里，就不用重写一遍。
+
+1. 如果需要新栏目，先在 `content/sections.json` 里加一项：`id`（小写字母）、`group`（侧栏分组名）、`title`、`kind`（`doc` / `exercise` / `qa`）、`dir`（源目录）、`track`（`rl` / `infra` / `gen`，决定颜色）、`blurb`。然后建好对应目录，放内容。
+2. 在 `content/domains.json` 里加一个领域：
+
+   ```json
+   {
+     "id": "recsys",
+     "title": "推荐系统",
+     "tagline": "召回、排序与在线服务",
+     "intro": "一两句话说明这个领域怎么复习。",
+     "roles": ["推荐算法", "推荐工程"],
+     "sections": ["recsys-theory", "algo", "recsys-qa"],
+     "resources": [["名字", "https://...", "一句话说明"]]
+   }
+   ```
+
+   `sections` 里的顺序不影响侧栏，侧栏按 `sections.json` 的顺序排；`resources` 是领域首页“外部资源”里的链接，可以不写。
+3. `python3 build.py`，打开网页确认首页出现了新领域。
 
 ## 内容准确性
 

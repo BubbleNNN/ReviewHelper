@@ -1,6 +1,6 @@
 <title>ReviewHelper</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="RL 与大模型 Infra 面试复习：理论、verl、DSpark、带测试用例的代码题与速问速答。">
+<meta name="description" content="按领域组织的面试复习站：理论讲义、框架拆解、带测试用例的代码题与速问速答。首个领域是 RL × Infra。">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&display=swap">
@@ -131,6 +131,16 @@ code, pre, kbd, .mono { font-family: var(--font-mono); }
 .nav-home { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 7px; color: var(--ink-2); font-weight: 500; font-size: var(--fs-sm); }
 .nav-home:hover { background: var(--sunk); text-decoration: none; }
 .nav-home.active { background: var(--panel); color: var(--ink); box-shadow: var(--shadow); }
+.nav-home .count { margin-left: auto; font-family: var(--font-mono); font-size: .68rem; color: var(--muted); font-weight: 500; }
+.nav-home .x, .ds-name .x { color: var(--muted); font-weight: 500; }
+.domain-switch {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px;
+  padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--ink);
+}
+.domain-switch:hover { border-color: var(--accent); text-decoration: none; }
+.ds-label { font-family: var(--font-mono); font-size: .64rem; letter-spacing: .12em; color: var(--muted); }
+.ds-name { font-family: var(--font-display); font-weight: 700; font-size: .98rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ds-act { font-size: .72rem; color: var(--accent); }
 .nav-group { display: flex; flex-direction: column; gap: 2px; }
 .nav-group-label { font-family: var(--font-mono); font-size: .68rem; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); padding: 0 8px 4px; }
 .nav-sec-head {
@@ -440,6 +450,33 @@ mjx-container[display="true"] { margin: .4em 0 !important; }
 .resume { display: flex; align-items: center; gap: 12px; }
 .resume a { font-weight: 600; }
 
+.hero-solo { grid-template-columns: minmax(0, 1fr); }
+.hero .eyebrow a { color: var(--muted); }
+
+/* ---------- domain picker ---------- */
+.picker { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 36px; padding-top: 2vh; }
+.picker-head { display: flex; flex-direction: column; gap: 14px; max-width: 760px; }
+.picker-head h1 { margin: 0; font-size: clamp(2.2rem, 1.4rem + 3vw, 3.6rem); line-height: 1.05; font-weight: 800; letter-spacing: -.03em; }
+.picker-head p { margin: 0; color: var(--ink-2); font-size: var(--fs-md); max-width: 58ch; }
+.domain-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 16px; }
+.domain-card {
+  display: flex; flex-direction: column; gap: 12px; padding: 22px; min-width: 0;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px; color: var(--ink); box-shadow: var(--shadow);
+}
+.domain-card:hover { border-color: var(--accent); text-decoration: none; }
+.domain-card h2 { margin: 0; font-size: clamp(1.8rem, 1.3rem + 1.6vw, 2.4rem); font-weight: 800; letter-spacing: -.02em; line-height: 1.05; }
+.domain-card h2 .x { color: var(--muted); font-weight: 600; }
+.dc-tag { font-size: var(--fs-sm); color: var(--muted); margin-top: -4px; }
+.domain-card p { margin: 0; color: var(--ink-2); font-size: var(--fs-sm); line-height: 1.7; }
+.dc-secs { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .78rem; color: var(--ink-2); }
+.dc-secs span { display: inline-flex; align-items: center; gap: 6px; }
+.dc-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line-soft); font-size: .72rem; color: var(--muted); }
+.dc-foot .progress { flex: 1; min-width: 60px; }
+.dc-go { color: var(--accent); font-weight: 600; font-size: var(--fs-sm); white-space: nowrap; }
+.domain-add { background: transparent; border-style: dashed; box-shadow: none; justify-content: center; }
+.domain-add h2 { font-size: 1.3rem; color: var(--ink-2); }
+.domain-add code { font-size: .8em; background: var(--sunk); padding: .05em .35em; border-radius: 4px; }
+
 /* ---------- search palette ---------- */
 .palette-overlay { position: fixed; inset: 0; z-index: 90; background: color-mix(in srgb, var(--bg) 60%, transparent); backdrop-filter: blur(4px);
   display: flex; justify-content: center; align-items: flex-start;
@@ -527,7 +564,7 @@ window.MathJax = {
         <rect x="11" y="14.5" width="9" height="3" rx="1.5" fill="var(--gen-tint)"/>
         <rect x="15" y="20" width="10" height="3" rx="1.5" fill="var(--rl)"/>
       </svg>
-      <span><span class="brand-name">ReviewHelper</span><span class="brand-sub">RL × INFRA · 面试复习</span></span>
+      <span><span class="brand-name">ReviewHelper</span><span class="brand-sub">面试复习 · 按领域组织</span></span>
     </a>
     <button class="search-btn" id="searchBtn" type="button">
       <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
@@ -603,6 +640,31 @@ function isItemDone(it) {
   if (it.section.kind === "qa") { var p = deckProgress(it); return p.t > 0 && p.n === p.t; }
   return done.has(it.id);
 }
+
+/* ---------- domains（领域）：一个领域引用若干栏目，栏目可以被多个领域共用 ---------- */
+var SEC_BY_ID = {};
+DATA.sections.forEach(function (s) { SEC_BY_ID[s.id] = s; });
+var DOMAINS = (DATA.domains && DATA.domains.length) ? DATA.domains
+  : [{ id: "all", title: "全部内容", sections: DATA.sections.map(function (s) { return s.id; }) }];
+function domainById(id) { return DOMAINS.find(function (d) { return d.id === id; }); }
+function domainSections(d) { return DATA.sections.filter(function (s) { return d.sections.indexOf(s.id) >= 0; }); }
+var curDomain = domainById(store.get("domain", "")) || DOMAINS[0];
+function domainForSection(sec) {
+  if (curDomain && curDomain.sections.indexOf(sec.id) >= 0) return curDomain;
+  return DOMAINS.find(function (d) { return d.sections.indexOf(sec.id) >= 0; }) || curDomain;
+}
+function domainStats(d) {
+  var st = { doc: 0, ex: 0, cards: 0, n: 0, t: 0 };
+  domainSections(d).forEach(function (sec) {
+    var p = secProgress(sec); st.n += p.n; st.t += p.t;
+    if (sec.kind === "doc") st.doc += sec.items.length;
+    else if (sec.kind === "exercise") st.ex += sec.items.length;
+    else sec.items.forEach(function (it) { st.cards += it.cards.length; });
+  });
+  return st;
+}
+function domainCards(d) { return ALL_CARDS.filter(function (c) { return d.sections.indexOf(c.deck.section.id) >= 0; }); }
+function fmtTitle(t) { return esc(t).replace(/×/g, '<span class="x">×</span>'); }
 
 /* ---------- markdown ---------- */
 var mathBlock = {
@@ -696,14 +758,24 @@ function typeset(el) {
 if (window.MathJax && MathJax.startup && MathJax.startup.promise) MathJax.startup.promise.then(window.__rhMathReady);
 
 /* ---------- nav ---------- */
+var navMode = null; // "picker"：领域选择页；"domain"：某个领域内
 function renderNav() {
+  if (navMode === "picker") {
+    navEl.innerHTML = '<div class="nav-group"><div class="nav-group-label">选择领域</div>' + DOMAINS.map(function (d) {
+      var st = domainStats(d);
+      return '<a class="nav-home" href="#d-' + d.id + '" data-id="d-' + d.id + '"><span class="dot t-gen"></span>' + fmtTitle(d.title) + '<span class="count">' + st.n + "/" + st.t + "</span></a>";
+    }).join("") + "</div>";
+    markActive();
+    return;
+  }
   var groups = [];
-  DATA.sections.forEach(function (s) {
+  domainSections(curDomain).forEach(function (s) {
     var g = groups.find(function (x) { return x.name === s.group; });
     if (!g) { g = { name: s.group, secs: [] }; groups.push(g); }
     g.secs.push(s);
   });
-  var html = '<a class="nav-home" href="#home" data-id="home"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 7.5L8 2l6 5.5V14H2z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>总览</a>';
+  var html = '<a class="domain-switch" href="#home" title="切换领域"><span class="ds-label">领域</span><span class="ds-name">' + fmtTitle(curDomain.title) + '</span><span class="ds-act">切换</span></a>' +
+    '<a class="nav-home" href="#d-' + curDomain.id + '" data-id="d-' + curDomain.id + '"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 7.5L8 2l6 5.5V14H2z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>总览</a>';
   groups.forEach(function (g) {
     html += '<div class="nav-group"><div class="nav-group-label">' + esc(g.name) + "</div>";
     g.secs.forEach(function (s) {
@@ -978,35 +1050,48 @@ var TRACE = [
   ["gen", 0, 44, "p-gen"], ["reward", 44, 5, "p-fwd"], ["old_log_prob", 49, 8, "p-fwd"], ["ref", 57, 7, "p-fwd"],
   ["values", 64, 7, "p-fwd"], ["adv", 71, 1.2, "p-adv"], ["update_critic", 72.2, 10, "p-upd"], ["update_actor", 82.2, 13.8, "p-upd"], ["update_weights", 96, 4, "p-sync"]
 ];
-var EXTERNAL = [
-  ["Deep-ML", "https://www.deep-ml.com", "浏览器里写 ML / 线代 / 深度学习函数并跑测试用例，题量大，偏经典 ML。"],
-  ["TorchLeet", "https://github.com/Exorust/TorchLeet", "约 68 道 PyTorch 面试题（含 LLM 专题），Jupyter 填空。"],
-  ["TorchCode", "https://huggingface.co/spaces/duoan/TorchCode", "“张量版 LeetCode”，约 40 题，自动检查数值和梯度，可在 Colab 跑。"],
-  ["LeetGPU", "https://leetgpu.com", "在线写 CUDA / Triton / PyTorch kernel，没有本地 GPU 也能练。"],
-  ["llm_interview_note", "https://github.com/wdndev/llm_interview_note", "中文大模型面试八股：分布式训练、推理、强化学习、RAG 等，适合补广度。"],
-  ["RL 与 Agentic RL 面试题总结", "https://jxzhangjhu.github.io/blog/2026/everything-about-rl-and-agentic-rl/", "2026 年根据知乎面经整理的 RL 面试题，含 verl / AReaL 等框架选型。"],
-  ["verl 官方文档", "https://verl.readthedocs.io/en/latest/", "配置项、算法、Agent Loop、异步训练的权威说明。"],
-  ["DSpark 论文", "https://arxiv.org/abs/2607.05147", "Confidence-Scheduled Speculative Decoding with Semi-Autoregressive Generation。"]
-];
-function renderHome() {
-  var totalCards = ALL_CARDS.length;
-  var nEx = 0, nDoc = 0;
-  DATA.sections.forEach(function (s) { if (s.kind === "exercise") nEx += s.items.length; if (s.kind === "doc") nDoc += s.items.length; });
+function renderPicker() {
+  var el = h('<div class="picker"><header class="picker-head"><div class="eyebrow">REVIEWHELPER · 面试复习</div><h1>选一个领域开始复习</h1>' +
+    "<p>不同岗位的面试有很多共通的能力：算法题、系统设计、数学基础。这里按领域组织内容，同一个栏目可以出现在多个领域里，复习进度也是共享的。</p></header>" +
+    '<div class="domain-grid"></div></div>');
+  var grid = $(".domain-grid", el);
+  DOMAINS.forEach(function (d) {
+    var st = domainStats(d), secs = domainSections(d);
+    grid.insertAdjacentHTML("beforeend",
+      '<a class="domain-card" href="#d-' + d.id + '">' +
+      (d.roles && d.roles.length ? '<div class="chips">' + d.roles.map(function (r) { return '<span class="chip">' + esc(r) + "</span>"; }).join("") + "</div>" : "") +
+      "<h2>" + fmtTitle(d.title) + "</h2>" +
+      (d.tagline ? '<div class="dc-tag">' + esc(d.tagline) + "</div>" : "") +
+      (d.intro ? "<p>" + esc(d.intro) + "</p>" : "") +
+      '<div class="dc-secs">' + secs.map(function (s) { return '<span><i class="dot t-' + s.track + '"></i>' + esc(s.title) + "</span>"; }).join("") + "</div>" +
+      '<div class="dc-foot"><span class="mono">' + st.doc + " 篇讲义 · " + st.ex + " 道题 · " + st.cards + ' 张卡</span><div class="progress"><i style="width:' + (st.t ? 100 * st.n / st.t : 0) + '%"></i></div><span class="dc-go">进入 →</span></div></a>');
+  });
+  var addHref = SITE.repo ? SITE.repo + "/blob/" + SITE.branch + "/CONTRIBUTING.md#加一个新领域" : "";
+  grid.insertAdjacentHTML("beforeend", (addHref ? '<a class="domain-card domain-add" href="' + esc(addHref) + '" target="_blank" rel="noopener">' : '<div class="domain-card domain-add">') +
+    '<h2>＋ 新增一个领域</h2><p>推荐系统、后端、CV、量化……在 <code>content/domains.json</code> 里加一项，挑选已有栏目（比如算法题）或新写栏目，提交 PR 就会出现在这里。</p>' +
+    (addHref ? '<span class="dc-go">查看贡献指南 ↗</span></a>' : "</div>"));
+  view.appendChild(el);
+}
+
+function renderHome(d) {
+  var st = domainStats(d), secs = domainSections(d), cards = domainCards(d);
   var el = h('<div class="home"></div>');
-  var trace = '<div class="trace" aria-label="verl 一个 PPO step 的阶段耗时示意"><div class="trace-head"><span>timing_raw · 1 PPO step（示意比例）</span><span>verl V1 · _step_once</span></div><div class="trace-rows">' +
+  var trace = d.hero !== "rl-trace" ? "" : '<div class="trace" aria-label="verl 一个 PPO step 的阶段耗时示意"><div class="trace-head"><span>timing_raw · 1 PPO step（示意比例）</span><span>verl V1 · _step_once</span></div><div class="trace-rows">' +
     TRACE.map(function (r, i) { return '<span class="k">' + r[0] + '</span><span class="lane"><span class="bar ' + r[3] + '" style="left:' + r[1] + "%;width:" + r[2] + "%;animation-delay:" + (i * 70) + 'ms"></span></span>'; }).join("") +
     '</div><div class="trace-axis"><div></div><div><span>0</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div></div>' +
     '<div class="trace-legend"><span><i style="background:var(--infra)"></i>rollout 生成</span><span><i style="background:var(--gen)"></i>前向打分</span><span><i style="background:var(--accent)"></i>优势计算</span><span><i style="background:var(--rl)"></i>反向更新</span><span><i style="background:color-mix(in srgb, var(--infra) 55%, var(--panel))"></i>权重同步</span></div></div>';
+  var heroTitle = esc(d.title).replace(/\s*×\s*/, ' <span class="x">×</span><br>');
+  var res = d.resources || [];
   el.innerHTML =
-    '<section class="hero"><div class="hero-copy"><div class="eyebrow">INTERVIEW · REVIEW · ' + esc(DATA.generated) + '</div><h1>RL <span class="x">×</span><br>Infra</h1>' +
-    "<p>把强化学习和大模型系统的面试知识压成一张地图：先读理论，再用 verl 和 DSpark 两个框架把知识点串起来，最后手写带测试的代码。</p>" +
-    '<div class="hero-tags"><span class="chip t-rl">' + nDoc + ' 篇讲义</span><span class="chip t-infra">' + nEx + ' 道可运行的题</span><span class="chip">' + totalCards + " 张问答卡</span></div></div>" + trace + "</section>" +
+    '<section class="hero' + (trace ? "" : " hero-solo") + '"><div class="hero-copy"><div class="eyebrow"><a href="#home">全部领域</a><span>/</span><span>' + esc(d.tagline || "") + "</span></div><h1>" + heroTitle + "</h1>" +
+    (d.intro ? "<p>" + esc(d.intro) + "</p>" : "") +
+    '<div class="hero-tags"><span class="chip t-rl">' + st.doc + ' 篇讲义</span><span class="chip t-infra">' + st.ex + ' 道可运行的题</span><span class="chip">' + st.cards + " 张问答卡</span></div></div>" + trace + "</section>" +
     '<section><h2 class="h-label">复习地图</h2><div class="sec-grid"></div></section>' +
     '<section class="home-row"><div class="panel" id="quiz"></div><div class="panel"><h2 class="h-label" style="margin:0">本地跑题</h2><div class="cmd-list"></div><div class="resume"></div></div></section>' +
-    '<section><h2 class="h-label">配合使用的外部资源</h2><ul class="item-list ext-list">' + EXTERNAL.map(function (x) {
-      return '<li><a href="' + x[1] + '" target="_blank" rel="noopener"><span class="n">↗</span><span><div class="t">' + esc(x[0]) + '</div><div class="s">' + esc(x[2]) + "</div></span></a></li>";
-    }).join("") + "</ul></section>";
-  $(".sec-grid", el).innerHTML = DATA.sections.map(function (s) {
+    (res.length ? '<section><h2 class="h-label">配合使用的外部资源</h2><ul class="item-list ext-list">' + res.map(function (x) {
+      return '<li><a href="' + esc(x[1]) + '" target="_blank" rel="noopener"><span class="n">↗</span><span><div class="t">' + esc(x[0]) + '</div><div class="s">' + esc(x[2]) + "</div></span></a></li>";
+    }).join("") + "</ul></section>" : "");
+  $(".sec-grid", el).innerHTML = secs.map(function (s) {
     var p = secProgress(s), unit = s.kind === "qa" ? "卡" : s.kind === "exercise" ? "题" : "篇";
     return '<a class="sec-card" href="#sec-' + s.id + '"><div class="top"><span class="dot t-' + s.track + '"></span>' + esc(s.group) + " · " + TRACK_LABEL[s.track] + "</div><h3>" + esc(s.title) + "</h3><p>" + esc(s.blurb) + '</p><div class="meter"><div class="progress"><i style="width:' + (p.t ? 100 * p.n / p.t : 0) + '%"></i></div>' + p.n + "/" + p.t + " " + unit + "</div></a>";
   }).join("");
@@ -1016,15 +1101,15 @@ function renderHome() {
     cmds.appendChild(codeBlock(c[1], "bash"));
   });
   var last = BY_ID[store.get("last", "")];
-  if (last) $(".resume", el).innerHTML = '<span class="h-label" style="margin:0">继续</span><a href="#' + last.id + '">' + esc(last.title) + "</a>";
+  if (last && d.sections.indexOf(last.section.id) >= 0) $(".resume", el).innerHTML = '<span class="h-label" style="margin:0">继续</span><a href="#' + last.id + '">' + esc(last.title) + "</a>";
   else $(".resume", el).remove();
   view.appendChild(el);
-  renderQuiz($("#quiz", el));
+  renderQuiz($("#quiz", el), cards);
 }
-function renderQuiz(box) {
-  if (!ALL_CARDS.length) { box.innerHTML = '<h2 class="h-label">随机抽一题</h2><p class="quiz-from">还没有问答卡。</p>'; return; }
-  var pool = ALL_CARDS.filter(function (c) { return qaMarks[c.key] !== "ok"; });
-  if (!pool.length) pool = ALL_CARDS;
+function renderQuiz(box, cards) {
+  if (!cards.length) { box.innerHTML = '<h2 class="h-label">随机抽一题</h2><p class="quiz-from">这个领域还没有问答卡。</p>'; return; }
+  var pool = cards.filter(function (c) { return qaMarks[c.key] !== "ok"; });
+  if (!pool.length) pool = cards;
   var c = pool[Math.floor(Math.random() * pool.length)];
   box.innerHTML = '<h2 class="h-label" style="margin:0">随机抽一题</h2><div class="quiz-from"></div><p class="quiz-q"></p><div class="quiz-a prose" hidden></div><div class="runner-actions"><button type="button" class="btn btn-primary" data-q="show">显示答案</button><button type="button" class="btn" data-q="next">换一题</button><button type="button" class="btn" data-q="flash">连续抽卡</button></div>';
   $(".quiz-from", box).textContent = c.deck.title + " · Q" + String(c.i + 1).padStart(2, "0");
@@ -1034,8 +1119,8 @@ function renderQuiz(box) {
     var b = e.target.closest("[data-q]"); if (!b) return;
     var a = b.getAttribute("data-q");
     if (a === "show") { var qa = $(".quiz-a", box); qa.innerHTML = md(c.card.a); qa.hidden = false; enhance(qa); b.remove(); }
-    if (a === "next") renderQuiz(box);
-    if (a === "flash") flash(ALL_CARDS, function () { renderQuiz(box); });
+    if (a === "next") renderQuiz(box, cards);
+    if (a === "flash") flash(cards, function () { renderQuiz(box, cards); });
   };
 }
 
@@ -1116,15 +1201,26 @@ function route() {
   view.innerHTML = "";
   appEl.classList.remove("drawer-open");
   var it = BY_ID[r];
+  var sec = !it && r.indexOf("sec-") === 0 ? SEC_BY_ID[r.slice(4)] : null;
+  var dom = !it && !sec && r.indexOf("d-") === 0 ? domainById(r.slice(2)) : null;
+  var mode = (it || sec || dom) ? "domain" : "picker";
+  var target = dom || (it ? domainForSection(it.section) : sec ? domainForSection(sec) : curDomain);
+  if (mode !== navMode || target !== curDomain) {
+    if (target !== curDomain) { curDomain = target; store.set("domain", target.id); }
+    navMode = mode;
+    renderNav();
+  }
   if (it) {
     store.set("last", it.id);
     if (it.section.kind === "doc") renderDoc(it);
     else if (it.section.kind === "exercise") renderExercise(it);
     else renderDeck(it);
-  } else if (r.indexOf("sec-") === 0 && DATA.sections.some(function (s) { return "sec-" + s.id === r; })) {
-    renderSection(DATA.sections.find(function (s) { return "sec-" + s.id === r; }));
+  } else if (sec) {
+    renderSection(sec);
+  } else if (dom) {
+    renderHome(dom);
   } else {
-    renderHome();
+    renderPicker();
   }
   window.scrollTo(0, 0);
   markActive();
@@ -1134,7 +1230,6 @@ document.getElementById("sideFoot").innerHTML = "进度只存在这台设备的�
   ? '想补充或纠错？看 <a href="' + esc(SITE.repo + "/blob/" + SITE.branch + "/CONTRIBUTING.md") + '" target="_blank" rel="noopener">贡献指南</a>，或去 <a href="' + esc(SITE.repo) + '" target="_blank" rel="noopener">GitHub 仓库</a>。'
   : "内容源文件在 <code>content/</code> 和 <code>exercises/</code>，改完运行 <code>build.py</code>。");
 window.RH = { route: route, DATA: DATA };
-renderNav();
 route();
 })();
 </script>

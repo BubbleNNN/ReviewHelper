@@ -2,7 +2,7 @@
 
 **在线访问：<https://bubblennn.github.io/ReviewHelper/>** · 欢迎补充和纠错，见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-面试复习小站。目前覆盖 **RL × 大模型 Infra** 方向：理论讲义、两个框架抓手（verl、DSpark）、带测试用例的代码题、翻卡式速问速答。所有内容都是 Markdown / Python 源文件，`build.py` 把它们打包成一个单文件网页。
+按领域组织的面试复习小站。打开网页先选领域；不同领域可以共用栏目（比如算法题）。目前的领域是 **RL × 大模型 Infra**：理论讲义、两个框架抓手（verl、DSpark）、带测试用例的代码题、翻卡式速问速答。所有内容都是 Markdown / Python 源文件，`build.py` 把它们打包成一个单文件网页。
 
 ## 快速开始
 
@@ -34,7 +34,9 @@ python3 -m http.server 8000 -d site    # 浏览器打开 http://localhost:8000
 
 ```
 content/
+  domains.json           # 领域定义：每个领域引用哪些栏目、首页介绍、外部资源
   sections.json          # 栏目定义：标题、分组、岗位色（rl / infra / gen）、源目录
+  site.json              # GitHub 仓库地址（网页里“在 GitHub 上编辑”用）
   theory/rl/*.md         # RL 理论
   theory/infra/*.md      # Infra 理论
   frameworks/verl/*.md   # verl：架构、训练循环、算法与损失、性能、异步与 Agent
@@ -71,7 +73,7 @@ site/src/template.html   # 网页模板（样式 + 交互）
 
 - **新题**：复制一个 `exercises/*/<slug>/` 目录改。测试只用 numpy 和标准库，函数签名写成 `def test_xxx(m):`。写完跑 `uv run run.py <slug> --solution` 确认全过，再跑 `uv run run.py <slug>` 确认模板显示 TODO。
 
-- **新岗位 / 新栏目**：在 `content/sections.json` 加一项（`kind` 取 `doc` / `exercise` / `qa`），建好目录，重新 `python3 build.py`。
+- **新领域 / 新栏目**：栏目加在 `content/sections.json`，领域加在 `content/domains.json`（引用栏目 id），详见 [CONTRIBUTING.md](CONTRIBUTING.md#加一个新领域)。
 
 ## 在线访问与参与贡献
 

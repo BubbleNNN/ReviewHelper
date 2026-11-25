@@ -119,12 +119,30 @@ def main():
             if it["id"] in seen:
                 sys.exit(f"重复 id: {it['id']}")
             seen.add(it["id"])
+    domains_path = ROOT / "content" / "domains.json"
+    if domains_path.exists():
+        domains = json.loads(domains_path.read_text(encoding="utf-8"))
+    else:  # 没有领域配置时，所有栏目归到一个领域
+        domains = [{"id": "all", "title": "全部内容", "sections": [s["id"] for s in sections]}]
+    sec_ids = {s["id"] for s in sections}
+    used = set()
+    for d in domains:
+        if not ID_RE.match(d["id"]) or d["id"] in seen:
+            sys.exit(f"领域 id 非法或与其他 id 重复: {d['id']}")
+        for sid in d.get("sections", []):
+            if sid not in sec_ids:
+                sys.exit(f"领域 {d['id']} 引用了不存在的栏目: {sid}")
+            used.add(sid)
+    for sid in sorted(sec_ids - used):
+        print(f"提示：栏目 {sid} 没有被任何领域引用，网页上不会出现")
+
     site_cfg_path = ROOT / "content" / "site.json"
     site_cfg = json.loads(site_cfg_path.read_text(encoding="utf-8")) if site_cfg_path.exists() else {}
     repo = (site_cfg.get("repo") or "").rstrip("/")
     data = {
         "generated": datetime.date.today().isoformat(),
         "site": {"repo": repo, "branch": site_cfg.get("branch") or "main"},
+        "domains": domains,
         "sections": sections,
     }
     payload = json.dumps(data, ensure_ascii=False).replace("<", "\\u003c")

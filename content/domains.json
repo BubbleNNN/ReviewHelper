@@ -1,0 +1,21 @@
+[
+  {
+    "id": "rl-infra",
+    "title": "RL × Infra",
+    "tagline": "大模型强化学习、训练与推理系统",
+    "intro": "把强化学习和大模型系统的面试知识压成一张地图：先读理论，再用 verl 和 DSpark 两个框架把知识点串起来，最后手写带测试的代码。",
+    "roles": ["RL 算法", "RL Infra", "训练框架", "推理系统"],
+    "hero": "rl-trace",
+    "sections": ["rl", "infra", "verl", "dspark", "algo", "model", "system", "qa"],
+    "resources": [
+      ["Deep-ML", "https://www.deep-ml.com", "浏览器里写 ML / 线代 / 深度学习函数并跑测试用例，题量大，偏经典 ML。"],
+      ["TorchLeet", "https://github.com/Exorust/TorchLeet", "约 68 道 PyTorch 面试题（含 LLM 专题），Jupyter 填空。"],
+      ["TorchCode", "https://huggingface.co/spaces/duoan/TorchCode", "“张量版 LeetCode”，约 40 题，自动检查数值和梯度，可在 Colab 跑。"],
+      ["LeetGPU", "https://leetgpu.com", "在线写 CUDA / Triton / PyTorch kernel，没有本地 GPU 也能练。"],
+      ["llm_interview_note", "https://github.com/wdndev/llm_interview_note", "中文大模型面试八股：分布式训练、推理、强化学习、RAG 等，适合补广度。"],
+      ["RL 与 Agentic RL 面试题总结", "https://jxzhangjhu.github.io/blog/2026/everything-about-rl-and-agentic-rl/", "2026 年根据知乎面经整理的 RL 面试题，含 verl / AReaL 等框架选型。"],
+      ["verl 官方文档", "https://verl.readthedocs.io/en/latest/", "配置项、算法、Agent Loop、异步训练的权威说明。"],
+      ["DSpark 论文", "https://arxiv.org/abs/2607.05147", "Confidence-Scheduled Speculative Decoding with Semi-Autoregressive Generation。"]
+    ]
+  }
+]
