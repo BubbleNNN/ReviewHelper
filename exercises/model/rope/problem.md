@@ -15,12 +15,15 @@ source: Su et al. 2021 RoFormer；HF transformers 的 rotate_half / apply_rotary
 $$\text{RoPE}(x, p) = x \odot \cos(p\theta) + \text{rotate\_half}(x) \odot \sin(p\theta)$$
 
 ```python
-rope_cos_sin(positions, dim, base=10000.0) -> (cos, sin)   # 各 (len(positions), dim)
+rope_cos_sin(positions, dim, base=10000.0) -> (cos, sin)   # 各 (T, dim)，float64
 rotate_half(x)                                               # (..., dim)
 apply_rope(x, positions, base=10000.0)                       # x: (..., T, dim)，positions: (T,)
 ```
 
-`dim` 一定是偶数。`apply_rope` 要能处理 `(B, H, T, dim)` 这样的多维输入（在最后两维上广播）。
+输入输出都是 `torch.Tensor`：`positions` 是 long tensor，`x` 是浮点 tensor（测试用 float64）。`dim` 一定是偶数。
+
+- `rope_cos_sin` 一律用 float64 计算并返回 float64 的表（位置大时角度 $p\theta$ 很大，float32 精度不够）。
+- `apply_rope` 的输出 dtype 与 `x` 相同；要能处理 `(B, H, T, dim)` 这样的多维输入（在最后两维上广播）。
 
 <!-- solution -->
 
@@ -45,7 +48,7 @@ $$\langle \text{RoPE}(q,m), \text{RoPE}(k,n)\rangle = \text{Re}\sum_i q_i \bar k
 
 - 只对 $q,k$ 加 RoPE，不加在 $v$ 上。
 - KV cache 里存的是**已经旋转过的 k**；解码时新 token 的位置是 `T_cached`，不是 0。
-- 频率指数是 $-2i/d$，`np.arange(0, dim, 2) / dim`。
+- 频率指数是 $-2i/d$，即 `torch.arange(0, dim, 2, dtype=torch.float64) / dim`。不写 dtype 的话 `arange` 是 int64，除以 `dim` 后变成默认的 float32，精度不够。
 
 **长度外推**：base 越大，低频分量周期越长。NTK-aware scaling 通过增大 base 来外推；YaRN 对不同频段分别插值并调整注意力温度。
 

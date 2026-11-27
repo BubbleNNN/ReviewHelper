@@ -6,7 +6,7 @@ order: 12
 source: Ba et al. 2016 LayerNorm；Zhang & Sennrich 2019 RMSNorm（Llama 系列使用）
 ---
 
-输入 `x` 形状 `(N, D)`，在最后一维做归一化。
+输入 `x` 是形状 `(N, D)` 的 `torch.Tensor`（测试用 float64），在最后一维做归一化。输出 dtype 与输入一致。
 
 **LayerNorm**（方差用有偏估计，即除以 $D$）：
 
@@ -22,7 +22,9 @@ layernorm_backward(dy, cache) -> (dx, dgamma, dbeta)         # dgamma/dbeta 形�
 rmsnorm(x, weight, eps=1e-6) -> y
 ```
 
-`layernorm_backward` 要给出对 `x`、`gamma`、`beta` 的梯度。测试会用有限差分检查。
+`layernorm_backward` 要给出对 `x`、`gamma`、`beta` 的梯度。测试会用有限差分和 autograd（对 `F.layer_norm` 求导）两种方式检查。
+
+**不许调库**：不要调用 `F.layer_norm`、`F.rms_norm`、`torch.nn.LayerNorm` / `RMSNorm`；反向要手推公式实现，**不能用 autograd**（`.backward()`、`torch.autograd.grad` 都不行），测试会在 `torch.no_grad()` 下调用你的前向和反向。
 
 <!-- solution -->
 
@@ -43,7 +45,7 @@ $$dx = r\left(g-\overline{g}-\hat x\cdot\overline{g\odot\hat x}\right)$$
 
 **易错点**
 
-- 方差用 `ddof=0`。`np.var` 默认就是有偏的；`torch.var` 默认是无偏的（`unbiased=True`），手写 LayerNorm 时要传 `unbiased=False`。
+- 方差用有偏估计（除以 $D$）。`torch.var` 默认是无偏的（除以 $D-1$），手写 LayerNorm 时要传 `correction=0`（旧写法 `unbiased=False`），或者直接写 `((x - mu) ** 2).mean(-1)`。
 - 混合精度训练里归一化要在 fp32 里算，再 cast 回 bf16，否则 $\sigma^2$ 精度不够。
 
 > [!Q]
@@ -55,7 +57,8 @@ $$dx = r\left(g-\overline{g}-\hat x\cdot\overline{g\odot\hat x}\right)$$
 > Post-LN（原始 Transformer）在残差相加之后做归一化，深层时梯度不稳定，需要 warmup。Pre-LN 在子层之前归一化，残差通路是恒等映射，训练更稳，现代 LLM 基本都用 Pre-LN（或 Pre-RMSNorm）。
 
 ```python
-# torch：RMSNorm 一般这样写（先升 fp32）
+# 工程里 RMSNorm 一般这样写：bf16/fp16 输入先升 fp32 再算，最后 cast 回去
+# （本题测试用 float64，不需要这一步；x.float() 反而会把 float64 降成 float32）
 def rmsnorm(x, w, eps=1e-6):
     x32 = x.float()
     return (x32 * torch.rsqrt(x32.pow(2).mean(-1, keepdim=True) + eps)).to(x.dtype) * w

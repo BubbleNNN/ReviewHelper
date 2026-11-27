@@ -12,11 +12,14 @@ source: Dao et al. 2022 FlashAttention；Milakov & Gimelshein 2018 Online softma
 flash_attention(q, k, v, causal=False, block_q=16, block_k=16) -> (out, lse)
 ```
 
-- `q`: `(Tq, d)`，`k`: `(Tk, d)`，`v`: `(Tk, dv)`；分数要乘 `1/sqrt(d)`。
+- `q`: `(Tq, d)`，`k`: `(Tk, d)`，`v`: `(Tk, dv)`，都是 `torch.Tensor`（测试用 float64）；分数要乘 `1/sqrt(d)`。
 - `causal=True` 时保证 `Tq == Tk`，query `i` 只看 key `j <= i`。
 - `out`: `(Tq, dv)`，必须和朴素实现数值一致。
 - `lse`: `(Tq,)`，每行分数的 logsumexp（FlashAttention 反向要用它重算 softmax）。
 - 长度不一定能被块大小整除。
+- 输出 dtype 与输入一致。
+
+**不许调库**：不要调用 `F.scaled_dot_product_attention`（测试拿它当参照答案），也不要先算出完整分数矩阵再 `torch.softmax`。
 
 对每个 query 块，维护三个量：行最大值 $m$、归一化分母 $\ell$、未归一化的输出累加 $O$。处理新的 key 块（分数 $S$）时：
 
@@ -41,6 +44,7 @@ $$m' = \max(m, \text{rowmax}(S)),\quad P = e^{S - m'},\quad \ell' = e^{m-m'}\ell
 - 初始 $m=-\infty$。第一次更新时 $e^{m-m'}=e^{-\infty}=0$，不要写成 `exp(-inf - (-inf))`。
 - 某个块里一整行都被 mask 时 rowmax 是 `-inf`，要防止出现 `nan`。
 - 除以 $\ell$ 放在最后做一次，而不是每块都归一化（FA2 的改进之一，减少非 matmul 的 FLOPs）。
+- 累加量用 `q.new_zeros(...)` / `q.new_full(..., -math.inf)` 创建，dtype 和 device 跟着输入走；直接写 `torch.zeros(n)` 得到的是默认的 float32。
 
 > [!Q]
 > FlashAttention 的反向为什么不存注意力矩阵？
