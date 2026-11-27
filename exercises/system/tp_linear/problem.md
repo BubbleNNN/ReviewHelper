@@ -6,7 +6,7 @@ order: 12
 source: Megatron-LM (Shoeybi et al., 2019) · ColumnParallelLinear / RowParallelLinear
 ---
 
-在单进程里用 numpy 模拟 `tp` 个 rank 上的 Megatron 风格 MLP：
+在单进程里用 torch 模拟 `tp` 个 rank 上的 Megatron 风格 MLP（不用 `torch.distributed`，每个 rank 就是 list 里的一项）：
 
 $$Y = \mathrm{GeLU}(X W_1 + b_1)\, W_2 + b_2,\quad X\in\mathbb{R}^{n\times d},\ W_1\in\mathbb{R}^{d\times h},\ W_2\in\mathbb{R}^{h\times d}$$
 
@@ -14,7 +14,7 @@ $$Y = \mathrm{GeLU}(X W_1 + b_1)\, W_2 + b_2,\quad X\in\mathbb{R}^{n\times d},\ 
 
 - $W_1$、$b_1$ **按列**切（column parallel，按隐藏维 $h$ 切），每个 rank 独立算 $Z_r = X W_1^{(r)} + b_1^{(r)}$ 和 $A_r=\mathrm{GeLU}(Z_r)$。GeLU 是逐元素的，所以**不需要通信**。
 - $W_2$ **按行**切（row parallel，同样按 $h$ 切），每个 rank 算部分和 $Y_r = A_r W_2^{(r)}$，最后 **all-reduce 求和**，再加 $b_2$（只加一次）。
-- 用 `np.array_split` 切分，$h$ 不一定能被 `tp` 整除。
+- 按 `torch.tensor_split` 的方式切分（前 `h % tp` 份各多一个），$h$ 不一定能被 `tp` 整除。
 
 ```python
 shard_weights(W1, b1, W2, tp) -> list[dict]           # 每个 rank: {"W1", "b1", "W2"}
@@ -23,7 +23,11 @@ tp_mlp_backward(dy, x, shards, cache, all_reduce=None) -> grads
 # grads = {"dx": ..., "db2": ..., "dW1": [每 rank], "db1": [每 rank], "dW2": [每 rank]}
 ```
 
-`all_reduce(list_of_arrays) -> array` 是“通信原语”，默认实现为逐元素求和。**前向和反向都只允许调用它一次**。测试会传入一个计数的 `all_reduce` 来检查。
+所有输入输出都是 `torch.Tensor`（测试用 float64），输出 dtype 与输入一致；`grads` 里 `dW1`/`db1`/`dW2` 是每个 rank 一个 tensor 的 list。
+
+`all_reduce(list_of_tensors) -> tensor` 是“通信原语”，默认实现为逐元素求和。**前向和反向都只允许调用它一次**。测试会传入一个计数的 `all_reduce` 来检查。
+
+反向要**手写**：`tp_mlp_backward` 里不要调用 `.backward()` / `torch.autograd.grad`，也不要靠 `requires_grad` 让 autograd 代劳（测试正是拿 autograd 在不切分的完整 MLP 上算出的梯度当参考答案）。
 
 这对应 Megatron 论文里的两个共轭算子：
 
@@ -32,7 +36,7 @@ tp_mlp_backward(dy, x, shards, cache, all_reduce=None) -> grads
 | $f$ | column-parallel 的输入 $X$ | identity | all-reduce（把各 rank 的 $\partial L/\partial X$ 相加） |
 | $g$ | row-parallel 的输出 $Y$ | all-reduce | identity |
 
-模板里已经给了 `gelu(x)` 和 `gelu_grad(x)`（tanh 近似），直接用即可。
+模板里已经给了 `gelu(x)` 和 `gelu_grad(x)`（tanh 近似，和 `F.gelu(x, approximate="tanh")` 一致），直接用即可。
 
 <!-- solution -->
 

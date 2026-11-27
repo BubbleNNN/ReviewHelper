@@ -6,23 +6,25 @@ order: 10
 source: Baidu ring-allreduce / NCCL Ring 算法
 ---
 
-用 numpy 模拟 $p$ 个 rank 上的 **ring all-reduce**：每个 rank 手里有一个长度 $N$ 的向量，结束时每个 rank 都要拿到所有向量的逐元素和。
+在单进程里用 torch 模拟 $p$ 个 rank 上的 **ring all-reduce**：每个 rank 手里有一个长度 $N$ 的向量（`torch.Tensor`，测试用 float64），结束时每个 rank 都要拿到所有向量的逐元素和。不用 `torch.distributed`，“rank”就是 list 里的下标。
 
 规则：
 
-- 每个 rank 把自己的向量用 `np.array_split(x, p)` 切成 $p$ 块，块编号 `0..p-1`（$N$ 不一定能被 $p$ 整除）。
+- 每个 rank 把自己的向量用 `torch.tensor_split(x, p)` 切成 $p$ 块，块编号 `0..p-1`（$N$ 不一定能被 $p$ 整除，前 `N % p` 块各多一个元素）。
 - 环形拓扑：rank `r` **只能发给** rank `(r+1) % p`。
 - 每一步（step）里**每个 rank 恰好发送一块**给下一个 rank，所有发送同时进行（先把要发的数据读出来，再统一写入）。
 - 先做 $p-1$ 步 **reduce-scatter**（接收方把收到的块**加**到自己的同号块上），再做 $p-1$ 步 **all-gather**（接收方用收到的块**覆盖**自己的同号块）。step 编号从 0 连续到 $2(p-1)-1$。
 
 ```python
 ring_allreduce(buffers) -> (results, log)
-# buffers: 长度为 p 的 list，每个元素是 shape (N,) 的 np.ndarray
-# results: 长度为 p 的 list，每个都是全体之和（shape (N,)）
-# log:     list of (step, src, dst, chunk_id)，记录每一次发送
+# buffers: 长度为 p 的 list，每个元素是 shape (N,) 的 torch.Tensor
+# results: 长度为 p 的 list，每个都是全体之和（shape (N,) 的 tensor，dtype 与输入相同）
+# log:     list of (step, src, dst, chunk_id)，四个都是 python int，记录每一次发送
 ```
 
-不要原地修改输入。
+- 不要原地修改输入。
+- 输出 dtype 与输入一致：float64 进 float64 出，int64 进 int64 出（测试里有一个 int64 的用例）。
+- 结果必须由上面模拟的逐步收发得到，**不要**直接用 `torch.stack(buffers).sum(0)` 之类的写法算出总和再发给每个 rank。
 
 再实现一个 α-β 成本模型下的耗时估计（每条消息有固定延迟 $\alpha$，每字节耗时 $\beta$）：
 
@@ -44,7 +46,8 @@ $$T_{ring} = 2(p-1)\alpha + 2\frac{p-1}{p} N \beta$$
 **易错点。**
 
 - 同一步里必须“先读后写”，否则某个 rank 刚收到的数据会在同一步被转发出去，结果多加一遍。
-- `np.array_split` 让前几块多一个元素，块大小不一定相等，按块号取切片即可。
+- `torch.tensor_split` 让前几块多一个元素，块大小不一定相等，按块号取即可。不要用 `torch.chunk`：它按 $\lceil N/p\rceil$ 切，块数可能少于 $p$。
+- `torch.tensor_split` 返回的是输入的 view，直接 `+=` 会改坏调用方的 buffer，要先 `.clone()`。
 - $p=1$ 时没有任何通信，直接返回输入的拷贝。
 
 > [!Q]

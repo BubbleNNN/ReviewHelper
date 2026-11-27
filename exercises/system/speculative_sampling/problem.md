@@ -16,9 +16,12 @@ draft 模型已经在 $\gamma$ 个位置上依次采出了 token $x_1..x_\gamma$
 
 ```python
 verify(p, q, draft_tokens, u_accept, u_sample) -> list[int]
-# p: (γ+1, V)   q: (γ, V)   draft_tokens: 长度 γ
-# 返回 接受的 draft token + 1 个修正/bonus token，长度在 1..γ+1
+# p: (γ+1, V) float tensor   q: (γ, V) float tensor
+# draft_tokens: (γ,) long tensor   u_accept: (γ,) float tensor   u_sample: python float
+# 返回 python list[int]：接受的 draft token + 1 个修正/bonus token，长度在 1..γ+1
 ```
+
+输入都是 `torch.Tensor`，测试用 float64。随机数由调用方以 `u_accept` / `u_sample` 的形式显式传入（测试里用 `torch.Generator().manual_seed(s)` 生成），`verify` 内部不要再产生随机数，这样结果完全确定。返回的列表元素要是 python `int`（用 `int(...)` 转换），不要放 0 维 tensor。
 
 代码里下标从 0 开始：`p[k]`、`q[k]`、`draft_tokens[k]`、`u_accept[k]` 对应第 $k+1$ 个位置。
 
@@ -46,7 +49,7 @@ $$\mathbb{E}[\text{accepted}] = \sum_{k=1}^{\gamma}\prod_{i=1}^{k}\alpha_i$$
 **易错点。**
 
 - 拒绝后要**立刻停止**，后面的 draft token 全部作废（它们的条件前缀已经变了）。
-- 残差要先截断负数再归一化，而不是 $p-q$ 直接归一化。
+- 残差要先截断负数再归一化（`torch.clamp(p[k] - q[k], min=0)`），而不是 $p-q$ 直接归一化。
 - 贪心解码（temperature=0）时退化为“draft token 等于 target argmax 就接受”。
 - 全部接受时 bonus token 是白赚的：target 在最后一个位置的分布本来就算出来了。
 
