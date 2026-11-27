@@ -1057,20 +1057,35 @@ function makeEditor(initial, onChange, onRun) {
 }
 
 var practiceResults = {};
-function renderLocalOnly(panel, it) {
-  var box = h('<div class="local-only"><p><b>这道题用 PyTorch。</b>浏览器里的 Python（Pyodide）没有 torch，所以在本地写、本地跑。跑的就是旁边“' + esc(it.tests.map(function (t) { return t.name; }).join(", ")) + '”标签里的用例。</p><ol></ol></div>');
+/* 本机练习服务（uv run serve.py）：在 localhost 打开网页时，用本机的 Python + PyTorch 跑测试 */
+var localRt = { promise: null };
+function localCheck() {
+  if (localRt.promise) return localRt.promise;
+  var host = location.hostname;
+  if (location.protocol !== "http:" || (host !== "localhost" && host !== "127.0.0.1")) return (localRt.promise = Promise.resolve(null));
+  localRt.promise = fetch("api/ping", { cache: "no-store" })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (j) { return j && j.ok ? j : null; }, function () { return null; });
+  return localRt.promise;
+}
+function localRun(job) {
+  return fetch("api/run", { method: "POST", headers: { "Content-Type": "application/json", "X-ReviewHelper": "run" }, body: JSON.stringify({ slug: job.slug, code: job.code }) })
+    .then(function (r) { return r.json().catch(function () { return { error: "本机练习服务返回 HTTP " + r.status }; }); })
+    .then(function (r) { if (r.timeout) throw new Error("TIMEOUT"); if (r.error) throw new Error(r.error); return r; });
+}
+function localHelp(it) {
+  var box = h('<div class="local-only"><p><b>这道题用 PyTorch。</b>浏览器里的 Python（Pyodide）没有 torch，在这个网址下没法运行。在本机启动练习服务，就能继续在编辑器里写，点“运行测试”用本机的 PyTorch 跑同一份测试：</p><ol></ol><p></p></div>');
   var ol = $("ol", box);
   var repo = SITE.repo ? SITE.repo + ".git" : "<仓库地址>";
-  var steps = [
-    ["第一次用：克隆仓库并装依赖（会装 CPU 版 PyTorch，约 100 MB）", "git clone " + repo + " && cd ReviewHelper && uv sync"],
-    ["打开 <code>" + esc(it.path) + "/template.py</code> 写实现，然后跑测试（-v 打印每个用例和报错）", "uv run run.py " + it.slug + " -v"],
-    ["对答案前想确认测试本身没问题，可以用参考答案跑一遍", "uv run run.py " + it.slug + " --solution"]
-  ];
-  steps.forEach(function (st) { var li = h("<li>" + st[0] + "</li>"); li.appendChild(codeBlock(st[1], "bash")); ol.appendChild(li); });
-  panel.appendChild(box);
+  [["第一次用：克隆仓库并装依赖（会装 CPU 版 PyTorch，约 100 MB）", "git clone " + repo + " && cd ReviewHelper && uv sync", "bash"],
+   ["在仓库目录里启动练习服务（会自动打开浏览器）", "uv run serve.py", "bash"],
+   ["打开这道题", "http://localhost:8000/#" + it.id, ""]
+  ].forEach(function (st) { var li = h("<li>" + st[0] + "</li>"); li.appendChild(codeBlock(st[1], st[2])); ol.appendChild(li); });
+  $$("p", box)[1].innerHTML = "草稿按网址分开保存：到 localhost 页面后，用“复制代码”把这里写的带过去。不想开网页也可以直接改 <code>" + esc(it.path) +
+    "/template.py</code>，再运行 <code>uv run run.py " + esc(it.slug) + " -v</code>。";
+  return box;
 }
 function renderPractice(panel, it) {
-  if (it.needs_torch) { renderLocalOnly(panel, it); return; }
   var key = "code:" + it.id;
   var saved = store.get(key, null);
   var box = h('<div class="runner"><div class="editor-wrap"><div class="code-bar"><span class="fname"></span><span class="spacer"></span><span class="kbd-hint">Tab 缩进 · ⌘/Ctrl+Enter 运行</span></div></div>' +
@@ -1108,26 +1123,50 @@ function renderPractice(panel, it) {
     var db = $('[data-r="done"]', resWrap);
     if (db) db.addEventListener("click", function () { done.add(it.id); saveDone(); refreshNav(); db.remove(); var fb = $(".btn-done"); if (fb) { fb.classList.add("on"); fb.textContent = "✓ 已掌握（点击取消）"; } });
   }
+  var help = null;
+  function showHelp() { if (!help) { help = localHelp(it); box.appendChild(help); } return help; }
+  function timeoutMsg() {
+    setStatus("");
+    resWrap.innerHTML = '<div class="res"><div class="res-sum bad">运行超过 ' + RUN_TIMEOUT_MS / 1000 + " 秒被终止，可能有死循环。运行环境已重置，改完再试。</div></div>";
+  }
   function run() {
     if (runBtn.disabled) return;
     runBtn.disabled = true; runBtn.textContent = "运行中…";
-    setStatus(rt.state === "ready" ? "" : "正在加载浏览器里的 Python 运行环境（Pyodide，首次约 5–15 秒，之后有缓存）…");
-    var t0 = performance.now();
-    rtRun({ slug: it.slug, code: ed.get(), tests: it.tests }).then(function (r) {
-      setStatus("用时 " + ((performance.now() - t0) / 1000).toFixed(1) + " 秒 · 浏览器内 Python 3.13");
-      showResult(r);
-    }, function (err) {
-      if (err && err.message === "TIMEOUT") {
+    var t0 = performance.now(), code = ed.get();
+    function secs() { return ((performance.now() - t0) / 1000).toFixed(1); }
+    function finish() { runBtn.disabled = false; runBtn.textContent = "运行测试"; }
+    localCheck().then(function (info) {
+      if (info) {
+        setStatus("在本机运行…");
+        return localRun({ slug: it.slug, code: code }).then(function (r) {
+          setStatus("用时 " + secs() + " 秒 · 本机 Python " + esc(info.python) + (info.torch ? " · PyTorch " + esc(info.torch) : ""));
+          showResult(r);
+        }, function (err) {
+          if (err && err.message === "TIMEOUT") return timeoutMsg();
+          localRt.promise = null; // 服务可能已关闭，下次重新探测
+          setStatus("");
+          resWrap.innerHTML = '<div class="res"><div class="res-sum bad">本机练习服务没有正常返回：确认终端里的 uv run serve.py 还在运行</div><pre>' + esc(String(err && err.message || err)) + "</pre></div>";
+        });
+      }
+      if (it.needs_torch) {
         setStatus("");
-        resWrap.innerHTML = '<div class="res"><div class="res-sum bad">运行超过 ' + RUN_TIMEOUT_MS / 1000 + " 秒被终止，可能有死循环。运行环境已重置，改完再试。</div></div>";
-      } else {
+        resWrap.innerHTML = '<div class="res"><div class="res-sum todo">这道题要用 PyTorch，这个网址下跑不了。按下面三步在本机启动练习服务，就能在编辑器里直接运行。</div></div>';
+        showHelp().scrollIntoView({ block: "nearest", behavior: "smooth" });
+        return;
+      }
+      setStatus(rt.state === "ready" ? "" : "正在加载浏览器里的 Python 运行环境（Pyodide，首次约 5–15 秒，之后有缓存）…");
+      return rtRun({ slug: it.slug, code: code, tests: it.tests }).then(function (r) {
+        setStatus("用时 " + secs() + " 秒 · 浏览器内 Python 3.13");
+        showResult(r);
+      }, function (err) {
+        if (err && err.message === "TIMEOUT") return timeoutMsg();
         var alt = SITE.pages && location.href.indexOf(SITE.pages) !== 0 ? '，或者打开 <a href="' + esc(SITE.pages + "#" + it.id) + '" target="_blank" rel="noopener">公开网页版</a> 在线运行' : "";
         setStatus("");
         resWrap.innerHTML = '<div class="res"><div class="res-sum bad">没能加载浏览器里的 Python 运行环境</div><pre>' + esc(String(err && err.message || err)) +
           "</pre></div>";
         setStatus("可以在本地运行 <code>uv run run.py " + esc(it.slug) + "</code>" + alt + "。");
-      }
-    }).then(function () { runBtn.disabled = false; runBtn.textContent = "运行测试"; });
+      });
+    }).then(finish, finish);
   }
   box.addEventListener("click", function (e) {
     var b = e.target.closest("[data-r]"); if (!b) return;
@@ -1138,7 +1177,12 @@ function renderPractice(panel, it) {
   });
   panel.appendChild(box);
   if (practiceResults[it.id]) showResult(practiceResults[it.id]);
-  else setStatus(rt.state === "ready" ? "运行环境已就绪。" : "代码在你的浏览器里运行，不会上传。草稿自动保存在本机。");
+  else setStatus(it.needs_torch ? "" : rt.state === "ready" ? "运行环境已就绪。" : "代码在你的浏览器里运行，不会上传。草稿自动保存在本机。");
+  localCheck().then(function (info) {
+    if (!box.isConnected) return;
+    if (info) { if (!practiceResults[it.id]) setStatus("已连接本机练习服务 · Python " + esc(info.python) + (info.torch ? " · PyTorch " + esc(info.torch) : "") + "。草稿自动保存在本机。"); }
+    else if (it.needs_torch) { showHelp(); if (!practiceResults[it.id]) setStatus("这道题用 PyTorch：可以在这里写，运行需要本机练习服务（见下方）。草稿自动保存在本机。"); }
+  });
 }
 
 /* ---------- views ---------- */
@@ -1170,7 +1214,7 @@ function renderExercise(it) {
   var tabsEl = $(".tabs", el), panel = $(".tabpanel", el);
   var revealed = false;
   var tabs = [
-    { key: "practice", label: it.needs_torch ? "本地练习" : "在线练习", render: function () { renderPractice(panel, it); } },
+    { key: "practice", label: "在线练习", render: function () { renderPractice(panel, it); } },
     { key: "template", label: "template.py", render: function () { panel.appendChild(codeBlock(it.template, "python", it.path + "/template.py")); } },
     { key: "tests", label: it.tests.map(function (t) { return t.name; }).join(", "), render: function () { it.tests.forEach(function (t) { panel.appendChild(codeBlock(t.code, "python", it.path + "/" + t.name)); }); } },
     { key: "solution", label: "参考答案 + 讲解", render: function () {
@@ -1363,7 +1407,7 @@ function renderHome(d) {
     return '<a class="sec-card" href="#sec-' + s.id + '"><div class="top"><span class="dot t-' + s.track + '"></span>' + esc(s.group) + " · " + TRACK_LABEL[s.track] + "</div><h3>" + esc(s.title) + "</h3><p>" + esc(s.blurb) + '</p><div class="meter"><div class="progress"><i style="width:' + (p.t ? 100 * p.n / p.t : 0) + '%"></i></div>' + p.n + "/" + p.t + " " + unit + "</div></a>";
   }).join("");
   var cmds = $(".cmd-list", el);
-  [["装依赖（一次，含 CPU 版 PyTorch）", "uv sync"], ["跑全部题（测你的 template.py）", "uv run run.py"], ["只跑某题并看详细报错", "uv run run.py gae -v"], ["用参考答案自检", "uv run run.py --solution"]].forEach(function (c) {
+  [["装依赖（一次，含 CPU 版 PyTorch）", "uv sync"], ["在网页里写、用本机 PyTorch 跑（打开 localhost:8000）", "uv run serve.py"], ["跑全部题（测你的 template.py）", "uv run run.py"], ["只跑某题并看详细报错", "uv run run.py gae -v"], ["用参考答案自检", "uv run run.py --solution"]].forEach(function (c) {
     cmds.appendChild(h("<p>" + esc(c[0]) + "</p>"));
     cmds.appendChild(codeBlock(c[1], "bash"));
   });

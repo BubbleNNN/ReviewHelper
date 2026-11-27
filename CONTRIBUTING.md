@@ -52,7 +52,7 @@ python3 -m http.server 8000 -d site   # 打开 http://localhost:8000 预览
 测试的要求：
 
 - 模型题和数值类系统题用 PyTorch 写：输入输出都是 `torch.Tensor`，测试用 `torch.float64` 构造输入、用 `torch.testing.assert_close` 比较，随机数用 `torch.Generator().manual_seed(...)` 并通过 `generator=` 传入。实现要保持输入的 dtype。参考 `exercises/model/gae/` 和 `exercises/model/sampling/`。
-- 不需要张量的题（算法题、调度模拟）只用标准库。这类题网页上能直接“在线练习”：浏览器里的 Pyodide（Python 3.13）跑同一份测试。Pyodide 没有 torch，所以用到 torch 的题网页上会自动改为提示本地运行。
+- 不需要张量的题（算法题、调度模拟）只用标准库。这类题在公开网页上就能“在线练习”：浏览器里的 Pyodide（Python 3.13）跑同一份测试。Pyodide 没有 torch，用到 torch 的题在公开网页上可以写、不能跑，网页会提示启动 `uv run serve.py`（本机练习服务，同一个编辑器，用本机 PyTorch 跑）。
 - 固定随机种子，每个用例 0.5 秒以内；不能依赖文件系统里的其他文件或网络。
 - 如果 torch 里有现成函数就是答案（`F.softmax`、`F.scaled_dot_product_attention`、`torch.optim.AdamW`…），在题面里写明不许调用；测试里可以拿它当参考。
 - 损失函数类的题，加一个反传测试（梯度只流向该流的输入，被 clip / mask 的 token 梯度为 0）。

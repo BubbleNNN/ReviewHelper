@@ -6,9 +6,12 @@
 
 ## 在网页里直接写题
 
-模型题和数值类系统题用 **PyTorch** 写，只能在本地跑（浏览器里的 Python 没有 torch），网页上的“本地练习”标签给出命令。
+每道题页面默认打开“在线练习”：在浏览器里写代码，点“运行测试”（或 ⌘/Ctrl+Enter）跑和本地一模一样的测试。
 
-算法题和纯调度类的系统题不依赖第三方库，题目页默认打开“在线练习”：在浏览器里写代码，点“运行测试”（或 ⌘/Ctrl+Enter）跑和本地一模一样的测试。代码由 [Pyodide](https://pyodide.org)（浏览器里的 Python 3.13）在你的浏览器里执行，不会上传；草稿自动保存在本机。首次运行要下载约 10 MB 的运行环境，之后有缓存。运行超过 30 秒会被终止（防死循环）。
+- **算法题和纯调度类系统题**不依赖第三方库，在公开网页上就能直接运行（见下）。
+- **模型题和数值类系统题用 PyTorch 写**。浏览器里的 Python 没有 torch，所以要在本机启动练习服务：`uv run serve.py`，它会打开 <http://localhost:8000>。这个页面和公开网页一样，但“运行测试”会把编辑器里的代码交给本机的 Python + PyTorch 跑（子进程执行，30 秒超时）。服务只监听 127.0.0.1，并拒绝其他网站发来的请求。
+
+在公开网页上运行的那部分题：代码由 [Pyodide](https://pyodide.org)（浏览器里的 Python 3.13）在你的浏览器里执行，不会上传；草稿自动保存在本机。首次运行要下载约 10 MB 的运行环境，之后有缓存。运行超过 30 秒会被终止（防死循环）。
 
 ## 快速开始
 
@@ -18,6 +21,7 @@ uv run run.py                # 跑全部题目，测试你写的 template.py
 uv run run.py gae -v         # 只跑名字含 gae 的题，打印每个用例
 uv run run.py --solution     # 用参考答案跑，确认测试本身没问题
 uv run run.py --list         # 列出所有题
+uv run serve.py              # 在网页里写、用本机 PyTorch 跑：打开 http://localhost:8000
 ```
 
 没有 uv 也可以：`pip install torch pytest`，然后把 `uv run` 换成 `python3`。也可以用 pytest：
@@ -57,6 +61,7 @@ exercises/
     solution.py          # 参考答案
     test_<slug>.py       # 测试：def test_xxx(m)，m 是被测模块
 run.py                   # 不依赖 pytest 的运行器
+serve.py                 # 本机练习服务：网页编辑器 + 本机 Python/PyTorch 跑测试
 conftest.py              # pytest 的 m fixture
 build.py                 # 打包网页
 site/src/template.html   # 网页模板（样式 + 交互）

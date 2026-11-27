@@ -29,3 +29,6 @@ jobs:
 
       - name: 网页能正常构建
         run: uv run build.py
+
+      - name: 本机练习服务能跑题
+        run: uv run serve.py --check
