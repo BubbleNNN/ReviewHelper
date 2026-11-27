@@ -1,20 +1,18 @@
 import math
 
-import numpy as np
+import torch
 
 
 def router_probs(logits):
-    z = np.asarray(logits, dtype=np.float64)
-    z = z - z.max(axis=-1, keepdims=True)
-    e = np.exp(z)
-    return e / e.sum(axis=-1, keepdims=True)
+    return torch.softmax(logits, dim=-1)
 
 
 def top_k_routing(logits, k):
     probs = router_probs(logits)
-    idx = np.argsort(-probs, axis=-1, kind="stable")[:, :k]
-    w = np.take_along_axis(probs, idx, axis=-1)
-    return idx, w / w.sum(axis=-1, keepdims=True)
+    # stable 降序排序保证并列时下标小的在前（torch.topk 不承诺并列的顺序）
+    w, idx = torch.sort(probs, dim=-1, descending=True, stable=True)
+    w, idx = w[:, :k], idx[:, :k]
+    return idx, w / w.sum(dim=-1, keepdim=True)
 
 
 def expert_capacity(num_tokens, num_experts, k, capacity_factor):
@@ -22,13 +20,13 @@ def expert_capacity(num_tokens, num_experts, k, capacity_factor):
 
 
 def dispatch(expert_idx, num_experts, capacity):
-    expert_idx = np.asarray(expert_idx)
     T, k = expert_idx.shape
+    idx = expert_idx.tolist()   # 逐个元素的 python 循环，先转成 list 比逐个取 tensor 元素快
     assignments = [[] for _ in range(num_experts)]
-    dropped = np.zeros((T, k), dtype=bool)
+    dropped = torch.zeros(T, k, dtype=torch.bool, device=expert_idx.device)
     for j in range(k):          # slot 优先
         for t in range(T):      # slot 内按 token 顺序
-            e = int(expert_idx[t, j])
+            e = idx[t][j]
             if len(assignments[e]) < capacity:
                 assignments[e].append(t)
             else:
@@ -37,23 +35,21 @@ def dispatch(expert_idx, num_experts, capacity):
 
 
 def load_balancing_loss(logits, expert_idx, num_experts):
-    expert_idx = np.asarray(expert_idx)
-    f = np.bincount(expert_idx.ravel(), minlength=num_experts) / expert_idx.size
-    P = router_probs(logits).mean(axis=0)
-    return float(num_experts * np.sum(f * P))
+    f = torch.bincount(expert_idx.flatten(), minlength=num_experts).to(logits.dtype) / expert_idx.numel()
+    P = router_probs(logits).mean(dim=0)
+    return num_experts * (f * P).sum()  # f 是常数（计数），梯度只走 P
 
 
 def moe_forward(x, logits, experts, k, capacity):
-    x = np.asarray(x, dtype=np.float64)
     idx, w = top_k_routing(logits, k)
     _, dropped = dispatch(idx, len(experts), capacity)
-    y = np.zeros_like(x)
+    y = torch.zeros_like(x)
     for e, fn in enumerate(experts):
-        sel = (idx == e) & ~dropped                  # (T, k)
-        rows = np.nonzero(sel.any(axis=1))[0]
-        if rows.size == 0:
+        sel = (idx == e) & ~dropped                   # (T, k) bool
+        rows = sel.any(dim=1).nonzero(as_tuple=True)[0]
+        if rows.numel() == 0:
             continue
         out = fn(x[rows])                             # 每个专家一次处理自己的全部 token
-        gate = (w * sel).sum(axis=1)[rows]
-        y[rows] += gate[:, None] * out
+        gate = (w * sel).sum(dim=1)[rows]
+        y.index_add_(0, rows, gate[:, None] * out)
     return y

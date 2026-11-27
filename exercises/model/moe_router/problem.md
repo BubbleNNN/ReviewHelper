@@ -6,22 +6,22 @@ order: 38
 source: Shazeer et al. 2017；Lepikhin et al. 2020 GShard；Fedus et al. 2021 Switch Transformer
 ---
 
-实现一个 token-choice 的 MoE 路由器。`logits` 形状 `(T, E)`：`T` 个 token、`E` 个专家。
+实现一个 token-choice 的 MoE 路由器。`logits` 形状 `(T, E)`：`T` 个 token、`E` 个专家。张量输入输出都是 `torch.Tensor`（测试用 float64），专家下标是 long tensor，输出 dtype 与输入一致。
 
 ```python
 router_probs(logits) -> (T, E)                     # 对专家维做 softmax
-top_k_routing(logits, k) -> (expert_idx, weights)  # 各 (T, k)
+top_k_routing(logits, k) -> (expert_idx, weights)  # 各 (T, k)；expert_idx 是 long tensor
 expert_capacity(num_tokens, num_experts, k, capacity_factor) -> int
 dispatch(expert_idx, num_experts, capacity) -> (assignments, dropped)
-load_balancing_loss(logits, expert_idx, num_experts) -> float
-moe_forward(x, logits, experts, k, capacity) -> y  # x: (T, d)，experts: E 个函数 f(x_rows) -> 同形状
+load_balancing_loss(logits, expert_idx, num_experts) -> Tensor  # 0-d，可反传
+moe_forward(x, logits, experts, k, capacity) -> y  # x: (T, d) tensor，experts: E 个函数 f(x_rows) -> 同形状 tensor
 ```
 
 约定（测试按这些写）：
 
 - **top-k**：先对**所有专家** softmax，再取概率最大的 k 个，按概率降序排列（并列时下标小的在前），然后把这 k 个权重**重新归一化**到和为 1。
 - **容量**：`capacity = ceil(capacity_factor * T * k / E)`。
-- **dispatch 优先级**：先按 token 顺序处理所有 token 的**第 1 选择**，再按 token 顺序处理第 2 选择，依此类推。专家已满时这个 (token, slot) 被丢弃。`assignments[e]` 是分配给专家 `e` 的 token 下标列表（按加入顺序），`dropped` 是 `(T, k)` 的 bool 数组。
+- **dispatch 优先级**：先按 token 顺序处理所有 token 的**第 1 选择**，再按 token 顺序处理第 2 选择，依此类推。专家已满时这个 (token, slot) 被丢弃。`assignments[e]` 是分配给专家 `e` 的 token 下标列表（python int 的 list，按加入顺序），`dropped` 是 `(T, k)` 的 bool tensor。
 - **负载均衡损失**：$\mathcal L_{aux} = E\sum_{i} f_i P_i$，其中 $f_i$ = `expert_idx` 中等于 $i$ 的个数 / $(T\cdot k)$，$P_i$ = 所有 token 上专家 $i$ 的 router 概率均值。
 - **moe_forward**：$y_t=\sum_{j<k,\ \text{未丢弃}} w_{t,j}\,\text{expert}_{e_{t,j}}(x_t)$，被丢弃的 slot 贡献 0（实际模型里靠残差连接兜底）。
 
@@ -34,6 +34,8 @@ moe_forward(x, logits, experts, k, capacity) -> y  # x: (T, d)，experts: E 个�
 **容量与丢 token**：专家并行时每个专家的输入 buffer 是静态形状（便于 all-to-all 和 kernel），所以要设上限。capacity_factor > 1 留出余量；超出的 token 被丢弃，只走残差。推理时一般不丢（dropless，如 MegaBlocks 用块稀疏矩阵乘实现）。
 
 **和专家并行（EP）的关系**：dispatch 对应一次 all-to-all（把 token 发到专家所在的卡），专家计算后再一次 all-to-all（combine）把结果送回。通信量正比于 $T\cdot k\cdot d$，这是 MoE 训练和推理的主要开销之一。
+
+**并列与 `torch.topk`**：`torch.topk` 不承诺并列元素的先后顺序，要满足“并列时下标小的在前”，用 `torch.sort(probs, descending=True, stable=True)` 再截前 k 列。没有并列时两者结果相同，测试就是在随机 logits 上拿 `torch.topk` 对拍的。
 
 **其他路由变体**：Mixtral 先在 logits 上取 top-k 再对这 k 个做 softmax（数学上和“全 softmax 后取 top-k 再归一化”等价）；DeepSeek-V3 用 sigmoid 打分加上可调 bias 做 auxiliary-loss-free 的负载均衡；expert-choice 路由让专家挑 token，天然均衡。
 

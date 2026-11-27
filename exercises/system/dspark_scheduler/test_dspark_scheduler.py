@@ -1,4 +1,9 @@
-import numpy as np
+import itertools
+import operator
+
+import torch
+
+F64 = torch.float64
 
 
 def _theta(conf, lengths, sps):
@@ -14,14 +19,33 @@ def _theta(conf, lengths, sps):
     return tau * sps(B)
 
 
-def _rand_conf(rng, R, gamma):
-    return [list(rng.uniform(0.3, 0.98, size=gamma)) for _ in range(R)]
+def _gen(seed):
+    return torch.Generator().manual_seed(seed)
+
+
+def _uniform(g, lo, hi, n):
+    """n 个 [lo, hi) 上均匀分布的 python float"""
+    return (lo + (hi - lo) * torch.rand(n, generator=g, dtype=F64)).tolist()
+
+
+def _randint(g, lo, hi):
+    """[lo, hi) 内的 python int"""
+    return int(torch.randint(lo, hi, (), generator=g))
+
+
+def _rand_conf(g, R, gamma):
+    return [_uniform(g, 0.3, 0.98, gamma) for _ in range(R)]
+
+
+def _approx(xs, ys, atol=1e-12):
+    xs = list(xs)
+    assert len(xs) == len(ys) and all(abs(x - y) <= atol for x, y in zip(xs, ys)), f"{xs} != {ys}"
 
 
 def test_prefix_survival(m):
     a = m.prefix_survival([[0.9, 0.8, 0.5], [0.6], []])
-    np.testing.assert_allclose(a[0], [0.9, 0.72, 0.36])
-    np.testing.assert_allclose(a[1], [0.6])
+    _approx(a[0], [0.9, 0.72, 0.36])
+    _approx(a[1], [0.6])
     assert list(a[2]) == []
 
 
@@ -40,11 +64,11 @@ def test_steep_sps_verifies_nothing(m):
 
 
 def test_greedy_optimal_when_unimodal(m):
-    rng = np.random.default_rng(0)
+    g = _gen(0)
     for trial in range(12):
-        R, gamma = int(rng.integers(1, 4)), int(rng.integers(1, 4))
-        conf = _rand_conf(rng, R, gamma)
-        c0, c1 = float(rng.uniform(1, 20)), float(rng.uniform(0.2, 3))
+        R, gamma = _randint(g, 1, 4), _randint(g, 1, 4)
+        conf = _rand_conf(g, R, gamma)
+        (c0,), (c1,) = _uniform(g, 1, 20, 1), _uniform(g, 0.2, 3, 1)
         sps = lambda B, c0=c0, c1=c1: 1.0 / (c0 + c1 * B)  # noqa: E731
         lg, tg = m.greedy_schedule(conf, sps)
         lb, tb = m.brute_force_schedule(conf, sps)
@@ -54,10 +78,9 @@ def test_greedy_optimal_when_unimodal(m):
 
 
 def test_admitted_set_is_top_k(m):
-    rng = np.random.default_rng(1)
-    conf = _rand_conf(rng, 6, 5)
+    conf = _rand_conf(_gen(1), 6, 5)
     lengths, _ = m.greedy_schedule(conf, lambda B: 1.0 / (8 + B))
-    a = [np.cumprod(c) for c in conf]
+    a = [list(itertools.accumulate(c, operator.mul)) for c in conf]
     inside = [a[r][j] for r in range(6) for j in range(lengths[r])]
     outside = [a[r][j] for r in range(6) for j in range(lengths[r], 5)]
     assert inside and outside
@@ -78,8 +101,8 @@ def test_jagged_sps_breaks_early_stop(m):
 
 
 def test_brute_force_matches_definition(m):
-    rng = np.random.default_rng(2)
-    conf = [list(rng.uniform(0.2, 0.95, size=g)) for g in (2, 0, 3)]
+    g = _gen(2)
+    conf = [_uniform(g, 0.2, 0.95, n) for n in (2, 0, 3)]
     sps = lambda B: 1.0 / (1 + 0.4 * B)  # noqa: E731
     lb, tb = m.brute_force_schedule(conf, sps)
     best = max(_theta(conf, (x, 0, z), sps) for x in range(3) for z in range(4))

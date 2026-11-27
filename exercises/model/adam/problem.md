@@ -6,14 +6,15 @@ order: 36
 source: Kingma & Ba 2014 Adam；Loshchilov & Hutter 2017 AdamW；torch.optim.AdamW
 ---
 
-实现和 `torch.optim.AdamW` 一致的单步更新（numpy 数组）：
+实现和 `torch.optim.AdamW` 一致的单步更新。`param`、`grad` 是同形状的 `torch.Tensor`（测试用 float64）：
 
 ```python
 adamw_step(param, grad, state, lr=1e-3, betas=(0.9, 0.999), eps=1e-8, weight_decay=0.0) -> new_param
 ```
 
-- `state` 是一个 dict，第一次调用时为空 `{}`，由你初始化为 `{"step": 0, "m": zeros, "v": zeros}`，并**原地更新**。
-- 返回新的参数数组（可以新建，不要求原地修改 `param`）。
+- `state` 是一个 dict，第一次调用时为空 `{}`，由你初始化为 `{"step": 0, "m": zeros, "v": zeros}`，并**原地更新**。`step` 是 python int，`m`、`v` 是和 `param` 同形状、同 dtype 的 tensor。
+- 返回新的参数 tensor（可以新建，不要求原地修改 `param`），dtype、device 与 `param` 一致。
+- 不要调用 `torch.optim.AdamW` / `torch.optim.Adam` 或 `torch.optim` 里的其他优化器：测试拿它们当参照答案逐步对拍。
 
 每一步（$t$ 从 1 开始）：
 
@@ -44,6 +45,6 @@ $$\hat m = \frac{m}{1-\beta_1^t},\quad \hat v=\frac{v}{1-\beta_2^t},\quad \theta
 > β2 越大，$v$ 对梯度突变的反应越慢。大模型训练中偶发的梯度尖峰会让旧的小 $v$ 来不及跟上，导致更新量过大、loss 飙升。0.95 让 $v$ 更快适应，训练更稳定（GPT-3、Llama 都用 0.95）。
 
 ```python
-# torch
+# 实际训练时直接用 torch 自带的（注意它的默认 weight_decay=0.01，不是 0）
 opt = torch.optim.AdamW(model.parameters(), lr=1e-6, betas=(0.9, 0.999), weight_decay=0.01)
 ```

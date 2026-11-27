@@ -1,9 +1,11 @@
-import numpy as np
+import math
+import random
 
 
 def _lens(n, lo, hi, seed):
-    rng = np.random.default_rng(seed)
-    return [int(x) for x in rng.integers(lo, hi, size=n)]
+    """n 个 [lo, hi) 内的随机整数长度（python list[int]）"""
+    rng = random.Random(seed)
+    return [rng.randrange(lo, hi) for _ in range(n)]
 
 
 def _is_partition(groups, n):
@@ -38,9 +40,10 @@ def test_partition_beats_random(m):
     mx = max(sum(L[i] for i in g) for g in groups)
     avg = sum(L) / 8
     assert mx <= 1.05 * avg
-    rng = np.random.default_rng(123)
+    rng = random.Random(123)
     for _ in range(20):
-        perm = rng.permutation(64)
+        perm = list(range(64))
+        rng.shuffle(perm)
         rnd = max(sum(L[i] for i in perm[j * 8:(j + 1) * 8]) for j in range(8))
         assert mx <= rnd
 
@@ -70,7 +73,7 @@ def test_micro_batches_random(m):
     for g in groups:
         assert sum(L[i] for i in g) <= cap
     assert len(groups) <= 2 * sum(L) / cap + 1
-    assert len(groups) <= int(np.ceil(sum(L) / cap)) + 2  # FFD 在这种分布下接近下界
+    assert len(groups) <= math.ceil(sum(L) / cap) + 2  # FFD 在这种分布下接近下界
     try:
         m.micro_batches_by_tokens([10, 5000], 4096)
     except ValueError:

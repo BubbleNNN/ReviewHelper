@@ -27,6 +27,7 @@ greedy_schedule(conf, sps) -> (lengths, theta)       # Algorithm 1
 brute_force_schedule(conf, sps) -> (lengths, theta)  # 枚举所有组合，用来对拍
 # conf: 长度 R 的 list，conf[r] = [c_{r,1}, ..., c_{r,γ_r}]（可以为空）
 # sps:  callable, B -> float
+# 输入输出都是普通的 python list / int / float，不需要 tensor
 ```
 
 <!-- solution -->

@@ -6,7 +6,7 @@ order: 18
 source: verl/utils/seqlen_balancing.py · get_seqlen_balanced_partitions / rearrange_micro_batches
 ---
 
-RL 的 rollout 长度差异极大（几十到几万 token）。如果按条数平均分给各个 DP rank，有的 rank 拿到一堆长序列，其他 rank 只能干等。verl 的 `balance_batch` 和 `use_dynamic_bsz` 就是解决这个问题的。实现三个函数。
+RL 的 rollout 长度差异极大（几十到几万 token）。如果按条数平均分给各个 DP rank，有的 rank 拿到一堆长序列，其他 rank 只能干等。verl 的 `balance_batch` 和 `use_dynamic_bsz` 就是解决这个问题的。实现三个函数。输入输出都是普通的 python `list[int]` / `int`，不需要 tensor。
 
 **1. 均衡分组**：把 `seqlens` 分成 `k` 组，让**最大组的总长度尽量小**。`equal_size=True` 时每组条数相同（要求 `len(seqlens) % k == 0`，否则抛 `ValueError`）。可以用 LPT 贪心（按长度降序，每次放进当前总长最小、且没满的组）或 Karmarkar-Karp 差分法。
 
