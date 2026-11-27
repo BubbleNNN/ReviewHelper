@@ -14,11 +14,13 @@ $$\text{Attn}(Q,K,V)=\text{softmax}\!\left(\frac{QK^\top}{\sqrt{d}} + M\right)V$
 scaled_dot_product_attention(q, k, v, causal=False, key_padding_mask=None) -> (out, attn)
 ```
 
+- 输入输出都是 `torch.Tensor`（测试用 float64），输出 dtype 与 `q` 相同。
 - `q`: `(B, H, Tq, d)`，`k`: `(B, H, Tk, d)`，`v`: `(B, H, Tk, dv)`
-- `key_padding_mask`: `(B, Tk)` 的 bool 数组，**True 表示有效 token**，False 表示 padding。可以为 `None`。
+- `key_padding_mask`: `(B, Tk)` 的 bool tensor，**True 表示有效 token**，False 表示 padding（要被 mask 掉）。可以为 `None`。
 - `causal=True` 时用**右下角对齐**：第 `i` 个 query 只能看第 `j <= i + (Tk - Tq)` 个 key。`Tq == Tk` 时就是普通的下三角；`Tq=1` 时（带 KV cache 解码）能看到全部 key。
 - 返回 `out`: `(B, H, Tq, dv)` 和注意力权重 `attn`: `(B, H, Tq, Tk)`，被 mask 的位置权重必须严格为 0。
 - 保证每个 query 至少有一个可见的 key。
+- **不要直接调用** `F.scaled_dot_product_attention`、`nn.MultiheadAttention` / `F.multi_head_attention_forward`（测试拿 `F.scaled_dot_product_attention` 当对照）。`torch.softmax` 可以用。
 
 <!-- solution -->
 

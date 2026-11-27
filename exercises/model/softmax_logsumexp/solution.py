@@ -1,25 +1,22 @@
-import numpy as np
+import torch
 
 
-def logsumexp(x, axis=-1, keepdims=False):
-    x = np.asarray(x, dtype=np.float64)
-    m = np.max(x, axis=axis, keepdims=True)
-    m_safe = np.where(np.isfinite(m), m, 0.0)  # 整行 -inf 时避免 -inf - (-inf) = nan
-    with np.errstate(divide="ignore"):
-        out = np.log(np.sum(np.exp(x - m_safe), axis=axis, keepdims=True)) + m_safe
-    if not keepdims:
-        out = np.squeeze(out, axis=axis)
-    return out
+def _safe_max(x, dim):
+    m = torch.amax(x, dim=dim, keepdim=True)
+    # 整行 -inf 时 m=-inf，x - m 会变成 -inf - (-inf) = nan；把非有限的 max 换成 0
+    return torch.where(torch.isfinite(m), m, torch.zeros_like(m))
 
 
-def softmax(x, axis=-1):
-    x = np.asarray(x, dtype=np.float64)
-    m = np.max(x, axis=axis, keepdims=True)
-    m_safe = np.where(np.isfinite(m), m, 0.0)
-    e = np.exp(x - m_safe)
-    return e / np.sum(e, axis=axis, keepdims=True)
+def logsumexp(x, dim=-1, keepdim=False):
+    m = _safe_max(x, dim)
+    out = torch.log(torch.exp(x - m).sum(dim=dim, keepdim=True)) + m  # log(0) = -inf，不会报错
+    return out if keepdim else out.squeeze(dim)
 
 
-def log_softmax(x, axis=-1):
-    x = np.asarray(x, dtype=np.float64)
-    return x - logsumexp(x, axis=axis, keepdims=True)
+def softmax(x, dim=-1):
+    e = torch.exp(x - _safe_max(x, dim))
+    return e / e.sum(dim=dim, keepdim=True)
+
+
+def log_softmax(x, dim=-1):
+    return x - logsumexp(x, dim=dim, keepdim=True)

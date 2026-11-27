@@ -8,7 +8,9 @@ source: Ainslie et al. 2023 GQA；Llama 的 repeat_kv
 
 实现 grouped-query attention（GQA）的前向，以及带 KV cache 的增量解码。
 
-**参数约定**（行向量右乘权重）：`params = {"wq", "wk", "wv", "wo"}`
+输入、权重和输出都是 `torch.Tensor`（测试用 float64），输出 dtype 与 `x` 相同。权重就是普通 tensor，放在 dict 里传进来，不需要写 `nn.Module`。
+
+**参数约定**（行向量右乘权重，`x @ wq`）：`params = {"wq", "wk", "wv", "wo"}`
 
 | 权重 | 形状 |
 |---|---|
@@ -23,14 +25,16 @@ repeat_kv(x, n_rep)                    # (B, n_kv, T, hd) -> (B, n_kv*n_rep, T, 
 gqa_attention(x, params, n_heads, n_kv_heads, causal=True)   # x: (B, T, d_model) -> (B, T, d_model)
 
 class KVCache:
-    k, v                               # 形状 (B, n_kv_heads, T_cached, hd)，空 cache 时为 None
+    k, v                               # 形状 (B, n_kv_heads, T_cached, hd) 的 tensor，空 cache 时为 None
     def append(self, k_new, v_new)     # 沿时间维拼接，返回拼接后的 (k, v)
-    def __len__(self)                  # 已缓存的 token 数
+    def __len__(self)                  # 已缓存的 token 数（python int）
 
 gqa_decode_step(x_new, params, n_heads, n_kv_heads, cache)  # x_new: (B, t, d_model)，t>=1
 ```
 
 `gqa_decode_step` 只对新 token 计算 q/k/v，把新的 k/v 追加进 cache，再让新 query 对**全部**缓存的 key 做 causal 注意力（右下角对齐），返回 `(B, t, d_model)`。
+
+注意力核心自己写（`torch.softmax`、`torch.repeat_interleave` 可以用），**不要直接调用** `F.scaled_dot_product_attention`（尤其是它的 `enable_gqa=True`，测试拿它当对照）或 `nn.MultiheadAttention`。
 
 **核心性质（测试会检查）**：逐 token 解码的输出 = 一次性 causal 前向的输出。
 
@@ -47,6 +51,7 @@ MHA（$n_{kv}=n_h$）→ GQA（如 Llama-2-70B 是 64 个 query head 对 8 个 K
 **实现要点**
 
 - cache 里存的是 **n_kv 个 head**，不是 repeat 之后的。repeat 只在算注意力时临时做（真正的 kernel 连复制都不做，直接按 `h // n_rep` 索引）。
+- `repeat_kv` 要的是 `[h0,h0,h1,h1,...]`（`torch.repeat_interleave(x, n_rep, dim=1)` 或下面的 expand + reshape），不是 `x.repeat(1, n_rep, 1, 1)`：后者得到 `[h0,h1,h0,h1,...]`，head 对应关系就错了。
 - 解码时新 query 的位置是 `T_cached + i`，causal mask 要右下角对齐。
 - 预填充（prefill）可以一次喂多个 token，`gqa_decode_step` 支持 `t > 1` 就同时覆盖 prefill 和 decode。
 
