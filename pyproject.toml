@@ -2,11 +2,21 @@
 name = "reviewhelper"
 version = "0.1.0"
 description = "面试复习小站：理论 / 框架 / 带测试的代码题"
-requires-python = ">=3.9"
-dependencies = ["numpy>=1.24", "pytest>=7"]
+requires-python = ">=3.10"
+dependencies = ["torch>=2.2", "numpy>=1.24", "pytest>=7"]
 
 [tool.uv]
 package = false
+
+# Linux（包括 CI）上从 PyTorch 官方 CPU 源装 torch，避免 PyPI 默认带的几 GB CUDA 依赖。
+# macOS / Windows 上 PyPI 的 torch 本身就是 CPU（macOS 带 MPS）版本。
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [tool.pytest.ini_options]
 testpaths = ["exercises"]

@@ -34,7 +34,7 @@ order: 30
 
 <div class="flow"><span>GPU0</span><i>→</i><span>GPU1</span><i>→</i><span>GPU2</span><i>→</i><span>GPU3</span><i>↺</i><span class="f-infra">每步每卡发 N/p，共 2(p−1) 步</span></div>
 
-动手：`exercises/system/ring_allreduce` 用 numpy 模拟这两个阶段，并统计步数和字节数。
+动手：`exercises/system/ring_allreduce` 用 torch 张量在单进程里模拟这两个阶段，并统计步数和字节数。
 
 ## α-β 成本模型
 

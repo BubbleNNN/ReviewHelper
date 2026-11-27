@@ -6,19 +6,21 @@
 
 ## 在网页里直接写题
 
-每道题页面默认打开“在线练习”：在浏览器里写代码，点“运行测试”（或 ⌘/Ctrl+Enter）跑和本地一模一样的测试。代码由 [Pyodide](https://pyodide.org)（浏览器里的 Python 3.13 + numpy）在你的浏览器里执行，不会上传；草稿自动保存在本机。首次运行要下载约 20 MB 的运行环境，之后有缓存。运行超过 30 秒会被终止（防死循环）。
+模型题和数值类系统题用 **PyTorch** 写，只能在本地跑（浏览器里的 Python 没有 torch），网页上的“本地练习”标签给出命令。
+
+算法题和纯调度类的系统题不依赖第三方库，题目页默认打开“在线练习”：在浏览器里写代码，点“运行测试”（或 ⌘/Ctrl+Enter）跑和本地一模一样的测试。代码由 [Pyodide](https://pyodide.org)（浏览器里的 Python 3.13）在你的浏览器里执行，不会上传；草稿自动保存在本机。首次运行要下载约 10 MB 的运行环境，之后有缓存。运行超过 30 秒会被终止（防死循环）。
 
 ## 快速开始
 
 ```bash
-uv sync                      # 装 numpy + pytest（只需一次）
+uv sync                      # 装 torch（CPU 版，约 100 MB）+ pytest，只需一次
 uv run run.py                # 跑全部题目，测试你写的 template.py
 uv run run.py gae -v         # 只跑名字含 gae 的题，打印每个用例
 uv run run.py --solution     # 用参考答案跑，确认测试本身没问题
 uv run run.py --list         # 列出所有题
 ```
 
-没有 uv 也可以：`pip install numpy`，然后把 `uv run` 换成 `python3`。也可以用 pytest：
+没有 uv 也可以：`pip install torch pytest`，然后把 `uv run` 换成 `python3`。也可以用 pytest：
 
 ```bash
 uv run pytest                          # 测 template.py
@@ -48,7 +50,7 @@ content/
   qa/*.md                # 问答卡，每个 "## 问题" 是一张卡
 exercises/
   algo/<slug>/           # 算法题
-  model/<slug>/          # 模型与 RL 实现（numpy）
+  model/<slug>/          # 模型与 RL 实现（PyTorch）
   system/<slug>/         # 系统模拟（通信、KV cache、调度、投机采样…）
     problem.md           # 题面；<!-- solution --> 之后是讲解（网页上点开答案才显示）
     template.py          # 你要填的文件
@@ -75,7 +77,7 @@ site/src/template.html   # 网页模板（样式 + 交互）
 
   正文支持 `$...$` / `$$...$$` 公式、GFM 表格、代码块，以及提示框：`> [!NOTE]` 要点、`> [!TIP]` 技巧、`> [!WARN]` 易错、`> [!Q]` 面试追问、`> [!KEY]` 结论、`> [!SRC]` 源码对照。
 
-- **新题**：复制一个 `exercises/*/<slug>/` 目录改。测试只用 numpy 和标准库，函数签名写成 `def test_xxx(m):`。写完跑 `uv run run.py <slug> --solution` 确认全过，再跑 `uv run run.py <slug>` 确认模板显示 TODO。
+- **新题**：复制一个 `exercises/*/<slug>/` 目录改。张量题用 torch（约定见 [CONTRIBUTING.md](CONTRIBUTING.md#加一道题)），其他题只用标准库；测试函数写成 `def test_xxx(m):`。写完跑 `uv run run.py <slug> --solution` 确认全过，再跑 `uv run run.py <slug>` 确认模板显示 TODO。
 
 - **新领域 / 新栏目**：栏目加在 `content/sections.json`，领域加在 `content/domains.json`（引用栏目 id），详见 [CONTRIBUTING.md](CONTRIBUTING.md#加一个新领域)。
 

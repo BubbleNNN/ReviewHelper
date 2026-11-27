@@ -34,7 +34,7 @@ $$O' = e^{m-m'}\,O + e^{S_j - m'}\,V_j$$
 > [!KEY]
 > FlashAttention 的 FLOPs 一点没少，甚至反向更多。它快是因为把一个访存受限的算子变成了接近算力受限的算子。面试时一定要从 IO 讲，而不是说“它优化了计算”。
 
-动手：`exercises/model/flash_attention` 用 numpy 实现分块 + online softmax，并验证和朴素 attention 数值一致。
+动手：`exercises/model/flash_attention` 用 torch 实现分块 + online softmax，并验证和朴素 attention 数值一致。
 
 ### FA2 与 FA3 改进了什么
 

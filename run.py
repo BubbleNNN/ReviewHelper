@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ReviewHelper 题目运行器（不依赖 pytest，只需要 numpy）。
+"""ReviewHelper 题目运行器（不依赖 pytest；模型题和部分系统题需要 torch）。
 
 用法
     uv run run.py                 # 跑全部题目，测试你写的 template.py
@@ -8,7 +8,7 @@
     uv run run.py --solution      # 用参考答案跑（检查测试本身）
     uv run run.py --list          # 列出所有题目
 
-没装 uv 的话，把 `uv run` 换成 `python3`，并先 `pip install numpy`。
+没装 uv 的话，把 `uv run` 换成 `python3`，并先 `pip install torch`。
 """
 import argparse
 import importlib.util

@@ -358,6 +358,11 @@ mjx-container[display="true"] { margin: .4em 0 !important; }
 }
 .reveal-cover p { margin: 0; max-width: 44ch; font-size: var(--fs-sm); }
 .explain { margin-top: 28px; }
+.local-only { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+.local-only > p { margin: 0; font-size: var(--fs-sm); color: var(--muted); max-width: 70ch; }
+.local-only > p b { color: var(--ink); }
+.local-only ol { margin: 0; padding-left: 1.3em; display: flex; flex-direction: column; gap: 10px; font-size: var(--fs-sm); }
+.local-only ol li > .code { margin-top: 6px; }
 .runner { display: flex; flex-direction: column; gap: 12px; }
 .editor-wrap { position: relative; border-radius: var(--radius); background: var(--code-bg); border: 1px solid var(--code-line); overflow: hidden; }
 .editor-wrap .code-bar { border-bottom: 1px solid var(--code-line); }
@@ -900,7 +905,7 @@ function buildToc(article, tocEl) {
 var tocSpy = null;
 window.addEventListener("scroll", function () { if (tocSpy) tocSpy(); }, { passive: true });
 
-/* ---------- 在线运行：Pyodide（浏览器里的 CPython + numpy）跑在 Web Worker 里 ---------- */
+/* ---------- 在线运行：Pyodide（浏览器里的 CPython）跑在 Web Worker 里；用 torch 的题只能本地跑 ---------- */
 var PYODIDE_URL = "https://cdn.jsdelivr.net/pyodide/v0.28.3/full/";
 var RUN_TIMEOUT_MS = 30000;
 var HARNESS = String.raw`
@@ -914,7 +919,7 @@ def _rh_load(name, path):
     return mod
 
 def _rh_fmt(e):
-    # 只保留用户代码和测试文件里的帧，去掉 numpy / 标准库内部的帧
+    # 只保留用户代码和测试文件里的帧，去掉第三方库 / 标准库内部的帧
     frames = [f for f in traceback.extract_tb(e.__traceback__) if f.filename.startswith('/tmp/rh/')]
     head = ('Traceback (most recent call last):\n' + ''.join(traceback.format_list(frames))) if frames else ''
     text = head + ''.join(traceback.format_exception_only(type(e), e))
@@ -977,7 +982,8 @@ function rtEnsure() {
   if (rt.ready) return rt.ready;
   var src = "var py = null; var HARNESS = " + JSON.stringify(HARNESS) + ";\n" +
     "self.onmessage = async function (e) { var m = e.data; try {\n" +
-    "  if (m.type === 'init') { importScripts(m.url + 'pyodide.js'); py = await loadPyodide({ indexURL: m.url }); await py.loadPackage('numpy'); py.runPython(HARNESS); postMessage({ type: 'ready' }); return; }\n" +
+    "  if (m.type === 'init') { importScripts(m.url + 'pyodide.js'); py = await loadPyodide({ indexURL: m.url }); py.runPython(HARNESS); postMessage({ type: 'ready' }); return; }\n" +
+    "  await py.loadPackagesFromImports([m.job.code].concat(m.job.tests.map(function (t) { return t.code; })).join('\\n'));\n" +
     "  py.globals.set('_rh_job', JSON.stringify(m.job)); postMessage({ type: 'result', json: py.runPython('_rh_run(_rh_job)') });\n" +
     "} catch (err) { postMessage({ type: 'error', error: String((err && err.message) || err) }); } };";
   rt.state = "loading";
@@ -1051,7 +1057,20 @@ function makeEditor(initial, onChange, onRun) {
 }
 
 var practiceResults = {};
+function renderLocalOnly(panel, it) {
+  var box = h('<div class="local-only"><p><b>这道题用 PyTorch。</b>浏览器里的 Python（Pyodide）没有 torch，所以在本地写、本地跑。跑的就是旁边“' + esc(it.tests.map(function (t) { return t.name; }).join(", ")) + '”标签里的用例。</p><ol></ol></div>');
+  var ol = $("ol", box);
+  var repo = SITE.repo ? SITE.repo + ".git" : "<仓库地址>";
+  var steps = [
+    ["第一次用：克隆仓库并装依赖（会装 CPU 版 PyTorch，约 100 MB）", "git clone " + repo + " && cd ReviewHelper && uv sync"],
+    ["打开 <code>" + esc(it.path) + "/template.py</code> 写实现，然后跑测试（-v 打印每个用例和报错）", "uv run run.py " + it.slug + " -v"],
+    ["对答案前想确认测试本身没问题，可以用参考答案跑一遍", "uv run run.py " + it.slug + " --solution"]
+  ];
+  steps.forEach(function (st) { var li = h("<li>" + st[0] + "</li>"); li.appendChild(codeBlock(st[1], "bash")); ol.appendChild(li); });
+  panel.appendChild(box);
+}
 function renderPractice(panel, it) {
+  if (it.needs_torch) { renderLocalOnly(panel, it); return; }
   var key = "code:" + it.id;
   var saved = store.get(key, null);
   var box = h('<div class="runner"><div class="editor-wrap"><div class="code-bar"><span class="fname"></span><span class="spacer"></span><span class="kbd-hint">Tab 缩进 · ⌘/Ctrl+Enter 运行</span></div></div>' +
@@ -1092,7 +1111,7 @@ function renderPractice(panel, it) {
   function run() {
     if (runBtn.disabled) return;
     runBtn.disabled = true; runBtn.textContent = "运行中…";
-    setStatus(rt.state === "ready" ? "" : "正在加载浏览器里的 Python 运行环境（Pyodide + numpy，首次约 10–20 秒，之后有缓存）…");
+    setStatus(rt.state === "ready" ? "" : "正在加载浏览器里的 Python 运行环境（Pyodide，首次约 5–15 秒，之后有缓存）…");
     var t0 = performance.now();
     rtRun({ slug: it.slug, code: ed.get(), tests: it.tests }).then(function (r) {
       setStatus("用时 " + ((performance.now() - t0) / 1000).toFixed(1) + " 秒 · 浏览器内 Python 3.13");
@@ -1151,7 +1170,7 @@ function renderExercise(it) {
   var tabsEl = $(".tabs", el), panel = $(".tabpanel", el);
   var revealed = false;
   var tabs = [
-    { key: "practice", label: "在线练习", render: function () { renderPractice(panel, it); } },
+    { key: "practice", label: it.needs_torch ? "本地练习" : "在线练习", render: function () { renderPractice(panel, it); } },
     { key: "template", label: "template.py", render: function () { panel.appendChild(codeBlock(it.template, "python", it.path + "/template.py")); } },
     { key: "tests", label: it.tests.map(function (t) { return t.name; }).join(", "), render: function () { it.tests.forEach(function (t) { panel.appendChild(codeBlock(t.code, "python", it.path + "/" + t.name)); }); } },
     { key: "solution", label: "参考答案 + 讲解", render: function () {
@@ -1344,7 +1363,7 @@ function renderHome(d) {
     return '<a class="sec-card" href="#sec-' + s.id + '"><div class="top"><span class="dot t-' + s.track + '"></span>' + esc(s.group) + " · " + TRACK_LABEL[s.track] + "</div><h3>" + esc(s.title) + "</h3><p>" + esc(s.blurb) + '</p><div class="meter"><div class="progress"><i style="width:' + (p.t ? 100 * p.n / p.t : 0) + '%"></i></div>' + p.n + "/" + p.t + " " + unit + "</div></a>";
   }).join("");
   var cmds = $(".cmd-list", el);
-  [["装依赖（一次）", "uv sync"], ["跑全部题（测你的 template.py）", "uv run run.py"], ["只跑某题并看详细报错", "uv run run.py gae -v"], ["用参考答案自检", "uv run run.py --solution"]].forEach(function (c) {
+  [["装依赖（一次，含 CPU 版 PyTorch）", "uv sync"], ["跑全部题（测你的 template.py）", "uv run run.py"], ["只跑某题并看详细报错", "uv run run.py gae -v"], ["用参考答案自检", "uv run run.py --solution"]].forEach(function (c) {
     cmds.appendChild(h("<p>" + esc(c[0]) + "</p>"));
     cmds.appendChild(codeBlock(c[1], "bash"));
   });

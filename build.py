@@ -17,6 +17,7 @@ OUT = ROOT / "site" / "index.html"
 ARTIFACT = ROOT / "site" / "artifact.html"
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 SPLIT_MARK = "<!-- solution -->"
+TORCH_RE = re.compile(r"^\s*(import torch|from torch)\b", re.M)
 
 
 def parse_front_matter(text):
@@ -69,6 +70,7 @@ def load_exercises(sec):
         meta, body = parse_front_matter(prob.read_text(encoding="utf-8"))
         statement, _, explain = body.partition(SPLIT_MARK)
         tests = sorted(d.glob("test_*.py"))
+        sources = [(d / "template.py").read_text(encoding="utf-8")] + [t.read_text(encoding="utf-8") for t in tests]
         items.append({
             "id": make_id(sec["id"], d.name),
             "slug": d.name,
@@ -83,6 +85,8 @@ def load_exercises(sec):
             "solution": (d / "solution.py").read_text(encoding="utf-8"),
             "tests": [{"name": t.name, "code": t.read_text(encoding="utf-8")} for t in tests],
             "path": str(d.relative_to(ROOT)),
+            # 用到 torch 的题在浏览器里跑不了（Pyodide 没有 torch），网页上改为提示本地运行
+            "needs_torch": any(TORCH_RE.search(src) for src in sources),
         })
     return items
 
